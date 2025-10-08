@@ -654,7 +654,7 @@ void setup() {
 
   esp_sleep_enable_gpio_wakeup();
   esp_pm_config_esp32s3_t pm_config = {
-      .max_freq_mhz = 240,
+      .max_freq_mhz = 40,
       .min_freq_mhz = 40,
       .light_sleep_enable = true
   };
@@ -673,13 +673,18 @@ void ReadBattery() {
       map(constrain(voltage * 1000, 3000, 4185), 3000, 4185, 0, 100);
 
   bleKeyboard.setBatteryLevel(batteryPercent);
+
+  // Serial.print("CPU Frequency: ");
+  // Serial.print(getCpuFrequencyMhz());
+  // Serial.println(" MHz");
+
+  // Serial.println("PM Locks:");
+  // esp_pm_dump_locks(stdout);
 }
 
 void loop() {
 
   auto now = millis();
-
-
 
   for (int i = 0; i < TOTAL_KEYS; i++) {
     currentKeyState[i] = digitalRead(keyPins[i]);
