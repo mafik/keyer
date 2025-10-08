@@ -1,0 +1,14 @@
+CompileFlags:
+  Add:
+    - "-I/home/maf/.platformio/packages/toolchain-xtensa-esp32s3/xtensa-esp32s3-elf/include/c++/8.4.0"
+    - "-I/home/maf/.platformio/packages/toolchain-xtensa-esp32s3/xtensa-esp32s3-elf/include/c++/8.4.0/xtensa-esp32s3-elf"
+    - "-I/home/maf/.platformio/packages/toolchain-xtensa-esp32s3/xtensa-esp32s3-elf/include"
+    - "-I/home/maf/.platformio/packages/toolchain-xtensa-esp32s3/lib/gcc/xtensa-esp32s3-elf/8.4.0/include"
+    - "-I/home/maf/.platformio/packages/toolchain-xtensa-esp32s3/lib/gcc/xtensa-esp32s3-elf/8.4.0/include-fixed"
+    - "-I/home/maf/.platformio/packages/toolchain-xtensa-esp32s3/xtensa-esp32s3-elf/sys-include"
+    - "--target=xtensa-esp32s3-elf"
+    - "-Wno-c99-designator"
+  Remove:
+    - "-fno-tree-switch-conversion"
+    - "-fstrict-volatile-bitfields"
+    - "-mlongcalls"
