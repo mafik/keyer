@@ -18,8 +18,7 @@ using GPIO_Pin = uint8_t;
 // A mechanical switch numbered 0-9
 using Button = uint8_t;
 
-// 0 = not pressing, anything, 1 = pressing first button, 2 = pressing second
-// button, etc.
+// 0 = not pressing, 1 = pressing first button, 2 = pressing second button, etc.
 using FingerPosition = uint8_t;
 
 BleKeyboard ble_keyboard("temp", "𝖒𝖆𝖋", 100);
