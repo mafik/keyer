@@ -1,6 +1,22 @@
 # 𝖒𝖆𝖋's Keyer 🎹
 
 Firmware & goodies for making a [Keyer](https://en.wikipedia.org/wiki/Keyer) (one-handed version of a [chorded keyboard](https://en.wikipedia.org/wiki/Chorded_keyboard)).
+## Photos
+
+<table>
+  <tr>
+    <td><img src="photos/photo1.jpg" alt="Keyer in an open hand"></td>
+    <td><img src="photos/photo2.jpg" alt="Keyer held in hand"></td>
+  </tr>
+  <tr>
+    <td><img src="photos/photo3.jpg" alt="Keyer viewed from the front"></td>
+    <td><img src="photos/photo4.jpg" alt="Keyer hanging on a glove"></td>
+  </tr>
+  <tr>
+    <td><img src="photos/photo5.jpg" alt="Keyer on a table"></td>
+    <td><img src="photos/photo6.jpg" alt="Closeup of a keyer on a table"></td>
+  </tr>
+</table>
 
 **Features**:
 
