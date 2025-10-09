@@ -1,18 +1,32 @@
-#include "esp_sleep.h"
+#include "BleKeyboard.h"
 #include "esp_pm.h"
+#include "esp_sleep.h"
+#include "esp_timer.h"
+#include "freertos/portmacro.h"
 #include <Arduino.h>
 #include <BLEDevice.h>
 #include <BLESecurity.h>
-#include "BleKeyboard.h"
 
 #include <cstdint>
 #include <vector>
 
-BleKeyboard bleKeyboard("temp", "𝖒𝖆𝖋", 100);
+// Character sent by the keyboard to the computer
+using IBM_Key = uint8_t;
 
-const int BATTERY_PIN = 3;
+using GPIO_Pin = uint8_t;
 
-enum KeyName {
+// A mechanical switch numbered 0-9
+using Button = uint8_t;
+
+// 0 = not pressing, anything, 1 = pressing first button, 2 = pressing second
+// button, etc.
+using FingerPosition = uint8_t;
+
+BleKeyboard ble_keyboard("temp", "𝖒𝖆𝖋", 100);
+
+const GPIO_Pin BATTERY_PIN = 3;
+
+enum ButtonEnum {
   THUMB_0,
   THUMB_1,
   THUMB_2,
@@ -23,11 +37,11 @@ enum KeyName {
   INDEX_7,
   MIDDLE_8,
   RING_9,
-  TOTAL_KEYS
+  NUM_BUTTONS
 };
 
-const char *KeyToStr(int key) {
-  switch (key) {
+const char *ButtonToStr(int btn) {
+  switch (btn) {
   case THUMB_0:
     return "THUMB_0";
   case THUMB_1:
@@ -53,22 +67,11 @@ const char *KeyToStr(int key) {
   }
 }
 
-constexpr int keyPins[TOTAL_KEYS] = {
+constexpr GPIO_Pin kButtonPin[NUM_BUTTONS] = {
     [THUMB_0] = 2,   [THUMB_1] = 5, [THUMB_2] = 0,   [INDEX_3] = 46,
     [MIDDLE_4] = 13, [RING_5] = 35, [LITTLE_6] = 37, [INDEX_7] = 38,
     [MIDDLE_8] = 8,  [RING_9] = 42,
 };
-
-bool lastKeyState[TOTAL_KEYS];
-bool currentKeyState[TOTAL_KEYS];
-
-unsigned long lastBatteryCheck = 0;
-const unsigned long BATTERY_CHECK_INTERVAL = 5000;
-
-// PIN collection state
-bool collectingPIN = false;
-String pinBuffer = "";
-const int PIN_LENGTH = 6;
 
 struct Action {
   virtual void OnStart() = 0;
@@ -102,10 +105,10 @@ Layer *current_layer = &base_layer;
 
 #define CHORDS current_layer->chords
 
-Action *arpeggios[TOTAL_KEYS][TOTAL_KEYS];
+Action *arpeggios[NUM_BUTTONS][NUM_BUTTONS];
 
-bool keys_down[TOTAL_KEYS];
-Action *active_key_actions[TOTAL_KEYS];
+bool buttons_down[NUM_BUTTONS];
+Action *active_button_actions[NUM_BUTTONS];
 Action *chord_action;
 unsigned long chord_start_millis; // 0 means that no chord is being composed
 
@@ -115,67 +118,57 @@ constexpr unsigned long CHORD_AUTOSTART_MILLIS = 350;
 
 enum ArpeggioState {
   STATE_READY,
-  STATE_KEY1_DOWN,
-  STATE_KEY2_DOWN,
+  STATE_BUTTON1_DOWN,
+  STATE_BUTTON2_DOWN,
   STATE_INACTIVE,
 } arpeggio_state = STATE_READY;
 unsigned long arpeggio_start_millis = 0;
-uint8_t arpeggio_key1 = 0;
-uint8_t arpeggio_key2 = 0;
+Button arpeggio_button1 = 0;
+Button arpeggio_button2 = 0;
 
-uint8_t Thumb() {
-  if (keys_down[THUMB_0]) {
+FingerPosition Thumb() {
+  if (buttons_down[THUMB_0])
     return 1;
-  } else if (keys_down[THUMB_1]) {
+  if (buttons_down[THUMB_1])
     return 2;
-  } else if (keys_down[THUMB_2]) {
+  if (buttons_down[THUMB_2])
     return 3;
-  } else {
-    return 0;
-  }
+  return 0;
 }
 
-uint8_t Index() {
-  if (keys_down[INDEX_3]) {
+FingerPosition Index() {
+  if (buttons_down[INDEX_3])
     return 1;
-  } else if (keys_down[INDEX_7]) {
+  if (buttons_down[INDEX_7])
     return 2;
-  } else {
-    return 0;
-  }
+  return 0;
 }
 
-uint8_t Middle() {
-  if (keys_down[MIDDLE_4]) {
+FingerPosition Middle() {
+  if (buttons_down[MIDDLE_4])
     return 1;
-  } else if (keys_down[MIDDLE_8]) {
+  if (buttons_down[MIDDLE_8])
     return 2;
-  } else {
-    return 0;
-  }
+  return 0;
 }
 
-uint8_t Ring() {
-  if (keys_down[RING_5]) {
+FingerPosition Ring() {
+  if (buttons_down[RING_5])
     return 1;
-  } else if (keys_down[RING_9]) {
+  if (buttons_down[RING_9])
     return 2;
-  } else {
-    return 0;
-  }
+  return 0;
 }
 
-uint8_t Little() {
-  if (keys_down[LITTLE_6]) {
+FingerPosition Little() {
+  if (buttons_down[LITTLE_6])
     return 1;
-  } else {
-    return 0;
-  }
+  return 0;
 }
 
 // The returned string is going to be invalidated after the next call to
 // ByteToStr()
-const char *ByteToStr(uint8_t key) {
+const char *IBM_KeyToStr(IBM_Key key) {
   switch (key) {
   case KEY_LEFT_CTRL:
     return "CtrlL";
@@ -217,36 +210,36 @@ const char *ByteToStr(uint8_t key) {
   return buf;
 }
 
-std::vector<uint8_t> temp_modifiers;
+std::vector<IBM_Key> temp_modifiers;
 
 void ReleaseTempModifiers() {
   for (auto mod : temp_modifiers) {
     Serial.printf("  Releasing modifier: %s (ReleaseTempModifiers)\n",
-                  ByteToStr(mod));
-    bleKeyboard.release(mod);
+                  IBM_KeyToStr(mod));
+    ble_keyboard.release(mod);
   }
   temp_modifiers.clear();
 }
 
 struct WriteKeyAction : Action {
-  uint8_t key;
-  WriteKeyAction(uint8_t key, Action *next = nullptr)
+  IBM_Key key;
+  WriteKeyAction(IBM_Key key, Action *next = nullptr)
       : Action(next), key(key) {}
   void OnStart() override {
-    Serial.printf("  Pressing key: %s (WriteKeyAction)\n", ByteToStr(key));
-    bleKeyboard.press(key);
+    Serial.printf("  Pressing key: %s (WriteKeyAction)\n", IBM_KeyToStr(key));
+    ble_keyboard.press(key);
   }
   void OnStop() override {
-    Serial.printf("  Releasing key: %s (WriteKeyAction)\n", ByteToStr(key));
-    bleKeyboard.release(key);
+    Serial.printf("  Releasing key: %s (WriteKeyAction)\n", IBM_KeyToStr(key));
+    ble_keyboard.release(key);
     ReleaseTempModifiers();
   }
 };
 // A modifier that affects the next key press.
 // It's released along with the next key.
 struct TemporaryModifierAction : Action {
-  uint8_t modifier;
-  TemporaryModifierAction(uint8_t modifier, Action *next = nullptr)
+  IBM_Key modifier;
+  TemporaryModifierAction(IBM_Key modifier, Action *next = nullptr)
       : Action(next), modifier(modifier) {}
   void OnStart() override {
     auto existing_modifier_it = temp_modifiers.end();
@@ -258,87 +251,87 @@ struct TemporaryModifierAction : Action {
     }
     if (existing_modifier_it != temp_modifiers.end()) {
       Serial.printf("  Releasing modifier [%s] (TemporaryModifierAction)\n",
-                    ByteToStr(modifier));
-      bleKeyboard.release(modifier);
+                    IBM_KeyToStr(modifier));
+      ble_keyboard.release(modifier);
       temp_modifiers.erase(existing_modifier_it);
     } else {
       Serial.printf("  Pressing modifier [%s] (TemporaryModifierAction)\n",
-                    ByteToStr(modifier));
-      bleKeyboard.press(modifier);
+                    IBM_KeyToStr(modifier));
+      ble_keyboard.press(modifier);
       temp_modifiers.push_back(modifier);
     }
   }
   void OnStop() override {}
 };
 struct HoldModifierAction : Action {
-    int held_key;
-    uint8_t modifier;
-    struct ReleaseHeldModifierAction : Action {
-        HoldModifierAction& hold_action;
-        ReleaseHeldModifierAction(HoldModifierAction& hold_action) : Action(nullptr), hold_action(hold_action) {}
-        void OnStart() override {}
-        void OnStop() override {
-            Serial.printf("  Releasing modifier [%s] (ReleaseHeldModifierAction)\n",
-                          ByteToStr(hold_action.modifier));
-            bleKeyboard.release(hold_action.modifier);
-        }
-    };
-    ReleaseHeldModifierAction release_action;
-    HoldModifierAction(int held_key, uint8_t modifier, Action *next = nullptr)
-        : Action(next), held_key(held_key), modifier(modifier), release_action(*this) {}
-    void OnStart() override {
-        if (active_key_actions[held_key]) {
-            Serial.printf("  Keeping modifier [%s] (HoldModifierAction)\n",
-                          ByteToStr(modifier));
-            return;
-        }
-        Serial.printf("  Pressing modifier [%s] (HoldModifierAction)\n",
-                        ByteToStr(modifier));
-        bleKeyboard.press(modifier);
-        active_key_actions[held_key] = &release_action;
+  Button hold_button;
+  IBM_Key modifier;
+  struct ReleaseHeldModifierAction : Action {
+    HoldModifierAction &hold_action;
+    ReleaseHeldModifierAction(HoldModifierAction &hold_action)
+        : Action(nullptr), hold_action(hold_action) {}
+    void OnStart() override {}
+    void OnStop() override {
+      Serial.printf("  Releasing modifier [%s] (ReleaseHeldModifierAction)\n",
+                    IBM_KeyToStr(hold_action.modifier));
+      ble_keyboard.release(hold_action.modifier);
     }
-    void OnStop() override {}
+  };
+  ReleaseHeldModifierAction release_action;
+  HoldModifierAction(Button held_key, IBM_Key modifier, Action *next = nullptr)
+      : Action(next), hold_button(held_key), modifier(modifier),
+        release_action(*this) {}
+  void OnStart() override {
+    if (active_button_actions[hold_button]) {
+      Serial.printf("  Keeping modifier [%s] (HoldModifierAction)\n",
+                    IBM_KeyToStr(modifier));
+      return;
+    }
+    Serial.printf("  Pressing modifier [%s] (HoldModifierAction)\n",
+                  IBM_KeyToStr(modifier));
+    ble_keyboard.press(modifier);
+    active_button_actions[hold_button] = &release_action;
+  }
+  void OnStop() override {}
 };
 
 // Shortcuts for faster layout definition
-static Action *Key(uint8_t key, Action *next = nullptr) {
+static Action *Key(IBM_Key key, Action *next = nullptr) {
   return new WriteKeyAction(key, next);
 }
-static Action *Mod(uint8_t modifier, Action *next = nullptr) {
+static Action *Mod(IBM_Key modifier, Action *next = nullptr) {
   return new TemporaryModifierAction(modifier, next);
 }
-static Action *Hold(int hold_button, uint8_t modifier, Action *next = nullptr) {
+static Action *Hold(Button hold_button, IBM_Key modifier,
+                    Action *next = nullptr) {
   return new HoldModifierAction(hold_button, modifier, next);
 }
 
 Action *FindUniqueAction() {
-  Action *found = nullptr;
-  int thumb_current = Thumb();
-  int index_current = Index();
-  int middle_current = Middle();
-  int ring_current = Ring();
-  int little_current = Little();
-  for (int thumb = 0; thumb <= 3; ++thumb) {
+  Action *first_found = nullptr;
+  FingerPosition thumb_current = Thumb(), index_current = Index(),
+                 middle_current = Middle(), ring_current = Ring(),
+                 little_current = Little();
+  for (FingerPosition thumb = 0; thumb <= 3; ++thumb) {
     if (thumb_current && thumb_current != thumb)
       continue;
-    for (int index = 0; index <= 2; ++index) {
+    for (FingerPosition index = 0; index <= 2; ++index) {
       if (index_current && index_current != index)
         continue;
-      for (int middle = 0; middle <= 2; ++middle) {
+      for (FingerPosition middle = 0; middle <= 2; ++middle) {
         if (middle_current && middle_current != middle)
           continue;
-        for (int ring = 0; ring <= 2; ++ring) {
+        for (FingerPosition ring = 0; ring <= 2; ++ring) {
           if (ring_current && ring_current != ring)
             continue;
-          for (int little = 0; little <= 1; ++little) {
+          for (FingerPosition little = 0; little <= 1; ++little) {
             if (little_current && little_current != little)
               continue;
-            if (Action *candidate =
-                    CHORDS[thumb][index][middle][ring][little]) {
-              if (found) {
+            if (Action *found = CHORDS[thumb][index][middle][ring][little]) {
+              if (first_found) {
                 return nullptr;
               } else {
-                found = candidate;
+                first_found = found;
               }
             }
           }
@@ -346,22 +339,22 @@ Action *FindUniqueAction() {
       }
     }
   }
-  return found;
+  return first_found;
 }
 
-void OnKeyDown(int i) {
+void OnButtonDown(Button i) {
   auto now = millis();
   if (arpeggio_state == STATE_READY) {
     arpeggio_start_millis = now;
-    arpeggio_key1 = i;
-    arpeggio_state = STATE_KEY1_DOWN;
-  } else if (arpeggio_state == STATE_KEY1_DOWN) {
+    arpeggio_button1 = i;
+    arpeggio_state = STATE_BUTTON1_DOWN;
+  } else if (arpeggio_state == STATE_BUTTON1_DOWN) {
     Serial.printf("Arpeggio key 1 down millis: %lu\n",
                   now - arpeggio_start_millis);
     if (now - arpeggio_start_millis >= ARPEGGIO_MIN_DELAY_MS) {
-      arpeggio_key2 = i;
+      arpeggio_button2 = i;
       arpeggio_start_millis = now;
-      arpeggio_state = STATE_KEY2_DOWN;
+      arpeggio_state = STATE_BUTTON2_DOWN;
     } else {
       arpeggio_state = STATE_INACTIVE;
     }
@@ -369,30 +362,30 @@ void OnKeyDown(int i) {
     arpeggio_state = STATE_INACTIVE;
   }
 
-  keys_down[i] = true;
+  buttons_down[i] = true;
   auto unique_action = FindUniqueAction();
   if (unique_action) {
     // If a unique key action was found, then don't add it to the chord but
     // rather start it immediately This allows multiple actions to be active at
     // the same time (as long as they have been unique at press time)
-    keys_down[i] = false;
+    buttons_down[i] = false;
     // We also don't want to start a new chord
     chord_start_millis = 0;
     Serial.printf(" Unique action!\n");
-    active_key_actions[i] = unique_action;
+    active_button_actions[i] = unique_action;
     unique_action->Start();
   } else {
     chord_start_millis = now;
   }
 }
 
-void OnKeyUp(int i) {
+void OnButtonUp(Button i) {
   auto now = millis();
-  if (arpeggio_state == STATE_KEY2_DOWN) {
-    Serial.printf("Arpeggio key 2 down millis: %lu\n",
+  if (arpeggio_state == STATE_BUTTON2_DOWN) {
+    Serial.printf("Arpeggio button 2 down millis: %lu\n",
                   now - arpeggio_start_millis);
     if (now - arpeggio_start_millis <= ARPEGGIO_MAX_DOWN_MS) {
-      auto action = arpeggios[arpeggio_key1][arpeggio_key2];
+      auto action = arpeggios[arpeggio_button1][arpeggio_button2];
       if (action) {
         Serial.printf("Arpeggio action\n");
         action->Execute();
@@ -402,11 +395,11 @@ void OnKeyUp(int i) {
     arpeggio_state = STATE_INACTIVE;
   }
 
-  if (auto &active_key_action = active_key_actions[i]) {
-    Serial.printf("Stopping active key action\n");
-    active_key_action->Stop();
-    active_key_action = nullptr;
-  } else if (chord_action && keys_down[i]) {
+  if (auto &active_button_action = active_button_actions[i]) {
+    Serial.printf("Stopping active button action\n");
+    active_button_action->Stop();
+    active_button_action = nullptr;
+  } else if (chord_action && buttons_down[i]) {
     Serial.printf("Stopping chord action\n");
     chord_action->Stop();
     chord_action = nullptr;
@@ -416,12 +409,13 @@ void OnKeyUp(int i) {
       Serial.printf("Chord action\n");
       action->Execute();
 
-      // It's possible that chord action attaches an "active key" action to the currently released key.
-      // If that's the case then it should be immediately stopped.
-      if (auto &active_key_action = active_key_actions[i]) {
-        Serial.printf("Stopping active key action\n");
-        active_key_action->Stop();
-        active_key_action = nullptr;
+      // It's possible that chord action attaches an "active key" action to the
+      // currently released key. If that's the case then it should be
+      // immediately stopped.
+      if (auto &active_button_action = active_button_actions[i]) {
+        Serial.printf("Stopping active button action\n");
+        active_button_action->Stop();
+        active_button_action = nullptr;
       }
     } else {
       Serial.printf("No chord action\n");
@@ -429,65 +423,69 @@ void OnKeyUp(int i) {
     chord_start_millis = 0;
   }
 
-  keys_down[i] = false;
+  buttons_down[i] = false;
 
-  bool any_key_down = false;
-  for (int i = 0; i < TOTAL_KEYS; i++) {
-    any_key_down |= keys_down[i];
+  bool any_button_down = false;
+  for (int i = 0; i < NUM_BUTTONS; i++) {
+    any_button_down |= buttons_down[i];
   }
-  bool all_keys_up = !any_key_down;
-  if (all_keys_up) {
+  bool all_buttons_up = !any_button_down;
+  if (all_buttons_up) {
     arpeggio_state = STATE_READY;
   }
 }
 
-class BleKeyboardSecurityCallbacks : public BLESecurityCallbacks {
-  uint32_t onPassKeyRequest() {
+struct BleKeyboardSecurityCallbacks : public BLESecurityCallbacks {
+  bool pass_key_collecting = false;
+  String pass_key_buffer = "";
+  const int PASS_KEY_LENGTH = 6;
+
+  uint32_t onPassKeyRequest() override {
     Serial.println(
         "DEBUG: onPassKeyRequest called - collecting PIN from keyboard");
     Serial.println("DEBUG: Please type 6 digits on the keyboard");
 
-    collectingPIN = true;
-    pinBuffer = "";
+    pass_key_collecting = true;
+    pass_key_buffer = "";
 
     // Wait for 6 digits to be entered
     unsigned long startTime = millis();
     const unsigned long timeout = 30000; // 30 second timeout
 
-    while (pinBuffer.length() < PIN_LENGTH &&
+    while (pass_key_buffer.length() < PASS_KEY_LENGTH &&
            (millis() - startTime) < timeout) {
       delay(10); // Small delay to prevent busy waiting
-      // PIN collection happens in main loop
+      // pass key collection happens in main loop
     }
 
-    collectingPIN = false;
+    pass_key_collecting = false;
 
-    if (pinBuffer.length() == PIN_LENGTH) {
-      uint32_t pin = pinBuffer.toInt();
-      Serial.printf("DEBUG: Collected PIN: %06d\n", pin);
-      return pin;
+    if (pass_key_buffer.length() == PASS_KEY_LENGTH) {
+      uint32_t bt_pass_key = pass_key_buffer.toInt();
+      Serial.printf("DEBUG: Collected PIN: %06d\n", bt_pass_key);
+      return bt_pass_key;
     } else {
       Serial.println("DEBUG: PIN collection timeout - using default");
       return 123456;
     }
   }
 
-  void onPassKeyNotify(uint32_t pass_key) {
+  void onPassKeyNotify(uint32_t pass_key) override {
     Serial.printf("DEBUG: onPassKeyNotify - PIN displayed: %06d\n", pass_key);
   }
 
-  bool onConfirmPIN(uint32_t pass_key) {
+  bool onConfirmPIN(uint32_t pass_key) override {
     Serial.printf("DEBUG: onConfirmPIN - PIN to confirm: %06d\n", pass_key);
     return true;
   }
 
-  bool onSecurityRequest() {
+  bool onSecurityRequest() override {
     // New device is connecting.
     Serial.println("DEBUG: onSecurityRequest called");
     return true;
   }
 
-  void onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
+  void onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) override {
     Serial.println("DEBUG: onAuthenticationComplete called");
     if (cmpl.success) {
       Serial.println("DEBUG: Pairing successful!");
@@ -495,14 +493,145 @@ class BleKeyboardSecurityCallbacks : public BLESecurityCallbacks {
       Serial.printf("DEBUG: Pairing failed, reason: %d\n", cmpl.fail_reason);
     }
   }
-};
+} ble_kb_security;
+
+QueueHandle_t button_changes;
+
+struct ButtonChange {
+  uint8_t button : 4;
+  int64_t time : 52; // esp_timer_get_time returns up to 52 bits
+} __attribute__((packed));
+
+#define BUTTON_ISR(button)                                                     \
+  void IRAM_ATTR button_isr_##button() {                                       \
+    auto event = ButtonChange{button, esp_timer_get_time()};                   \
+    xQueueSendToBackFromISR(button_changes, &event, nullptr);                  \
+  }
+
+BUTTON_ISR(0)
+BUTTON_ISR(1)
+BUTTON_ISR(2)
+BUTTON_ISR(3)
+BUTTON_ISR(4)
+BUTTON_ISR(5)
+BUTTON_ISR(6)
+BUTTON_ISR(7)
+BUTTON_ISR(8)
+BUTTON_ISR(9)
+
+void ReadBattery(void *) {
+  int rawValue = analogRead(BATTERY_PIN);
+  float voltage = (rawValue * 4.187) / 2441.0; // measured with a multimeter
+  int batteryPercent =
+      map(constrain(voltage * 1000, 3000, 4185), 3000, 4185, 0, 100);
+
+  ble_keyboard.setBatteryLevel(batteryPercent);
+
+  // Serial.print("CPU Frequency: ");
+  // Serial.print(getCpuFrequencyMhz());
+  // Serial.println(" MHz");
+
+  // Serial.println("PM Locks:");
+  // esp_pm_dump_locks(stdout);
+}
+
+// Zero-latency button debouncer.
+//
+// Initial state change is immediately registered as button press or release.
+// Subsequent state changes are ignored for a short time window (a couple of milliseconds).
+// After a period of no activity, the GPIO state is read directly to verify the current button state.
+//
+// The approach used by this debouncer results in zero latency but a minimal press duration equal to the debounce window.
+struct ButtonDebouncer {
+  Button i;
+  bool pressed_state;
+  esp_timer_handle_t timer;
+  int64_t last_change;
+
+  // Experimentally, the shortest physically possible key press was a tad over 15ms
+  constexpr static int64_t kDebounceMicroseconds = 15 * 1000;
+
+  bool ReadPressedGpio() { return digitalRead(kButtonPin[i]) == LOW; }
+
+  // Called at setup time
+  void OnSetup(Button button) {
+    i = button;
+    pinMode(kButtonPin[i], INPUT_PULLUP);
+    last_change = esp_timer_get_time();
+    pressed_state = ReadPressedGpio();
+
+    auto args = esp_timer_create_args_t{
+        .callback = [](void* arg) {
+            ButtonDebouncer* debouncer = static_cast<ButtonDebouncer*>(arg);
+            debouncer->OnTimer();
+        },
+        .arg = this,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = ButtonToStr(i),
+        .skip_unhandled_events = false
+    };
+    auto timer_result = esp_timer_create(&args, &timer);
+    if (timer_result != ESP_OK) {
+        Serial.printf("Failed to create timer for button %s\n", ButtonToStr(i));
+    }
+  }
+
+  void OnChange(int64_t time) {
+    auto delta = time - last_change;
+    last_change = time;
+    if (delta <= kDebounceMicroseconds) {
+        // Ignore state changes that happen within the debounce window.
+        // If it leads to any issues, then the ground-truth timer will fix them.
+    } else {
+        pressed_state = !pressed_state;
+        ReportPressedState();
+    }
+    { // Schedule a ground truth read in kDebounceMicroseconds
+        if (esp_timer_is_active(timer)) {
+            esp_timer_stop(timer);
+        }
+        esp_timer_start_once(timer, kDebounceMicroseconds);
+    }
+  }
+
+  void OnTimer() {
+      bool pressed_gpio = ReadPressedGpio();
+      if (pressed_gpio != pressed_state) {
+          pressed_state = pressed_gpio;
+          last_change = esp_timer_get_time();
+          ReportPressedState();
+      }
+  }
+
+  void ReportPressedState() {
+      if (pressed_state) {
+          if (ble_kb_security.pass_key_collecting) {
+            // During PIN collection, add digit to PIN buffer
+            ble_kb_security.pass_key_buffer += (char)(i + '0');
+            Serial.printf("DEBUG: PIN buffer: '%s' (%d/%d)\n",
+                          ble_kb_security.pass_key_buffer.c_str(),
+                          ble_kb_security.pass_key_buffer.length(),
+                          ble_kb_security.PASS_KEY_LENGTH);
+          } else if (ble_keyboard.isConnected()) {
+            // Normal operation - send via BLE
+            OnButtonDown(i);
+          } else {
+            Serial.println("BLE not connected");
+          }
+      } else {
+          if (ble_kb_security.pass_key_collecting) {
+            // ignore
+          } else if (ble_keyboard.isConnected()) {
+            OnButtonUp(i);
+          }
+      }
+  }
+} button_debouncers[NUM_BUTTONS];
 
 void setup() {
 
   Serial.begin(115200);
-  delay(1000);
   Serial.println("Starting Chord Keyboard...");
-  delay(1000);
   // Serial.end();
 
   // Arpeggios are global
@@ -603,40 +732,57 @@ void setup() {
   CHORDS[3][2][1][1][0] = Key(KEY_END);
 
   // Add Shifts
-  for (int thumb = 0; thumb <= 3; ++thumb) {
-    for (int index = 0; index <= 2; ++index) {
-      for (int middle = 0; middle <= 2; ++middle) {
-        for (int ring = 0; ring <= 2; ++ring) {
-            auto*& base = CHORDS[thumb][index][middle][ring][0];
-            auto*& shift = CHORDS[thumb][index][middle][ring][1];
-            if (base == nullptr) continue;
-            if (shift) continue;
-            shift = Hold(LITTLE_6, KEY_LEFT_SHIFT, base);
+  for (FingerPosition thumb = 0; thumb <= 3; ++thumb) {
+    for (FingerPosition index = 0; index <= 2; ++index) {
+      for (FingerPosition middle = 0; middle <= 2; ++middle) {
+        for (FingerPosition ring = 0; ring <= 2; ++ring) {
+          auto *&base = CHORDS[thumb][index][middle][ring][0];
+          auto *&shift = CHORDS[thumb][index][middle][ring][1];
+          if (base == nullptr)
+            continue;
+          if (shift)
+            continue;
+          shift = Hold(LITTLE_6, KEY_LEFT_SHIFT, base);
         }
       }
     }
   }
 
+  button_changes = xQueueCreate(100, sizeof(ButtonChange));
 
-  for (int i = 0; i < TOTAL_KEYS; i++) {
-    pinMode(keyPins[i], INPUT_PULLUP);
-    lastKeyState[i] = HIGH;
-    currentKeyState[i] = HIGH;
+  for (Button i = 0; i < NUM_BUTTONS; i++) {
+    button_debouncers[i].OnSetup(i);
   }
+
+#define ATTACH(button)                                                         \
+  attachInterrupt(kButtonPin[button], button_isr_##button, CHANGE);
+  ATTACH(0)
+  ATTACH(1)
+  ATTACH(2)
+  ATTACH(3)
+  ATTACH(4)
+  ATTACH(5)
+  ATTACH(6)
+  ATTACH(7)
+  ATTACH(8)
+  ATTACH(9)
+#undef ATTACH
 
   pinMode(BATTERY_PIN, INPUT);
 
-  bleKeyboard.setName("𝖒𝖆𝖋.🎹");
-  bleKeyboard.begin();
+  ble_keyboard.setName("𝖒𝖆𝖋.🎹");
+  ble_keyboard.begin();
 
-  BLESecurity *pSecurity = new BLESecurity();
-  pSecurity->setAuthenticationMode(ESP_LE_AUTH_REQ_SC_MITM_BOND);
-  pSecurity->setCapability(ESP_IO_CAP_IN);
-  pSecurity->setKeySize(16);
-  pSecurity->setInitEncryptionKey(ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK);
-  pSecurity->setRespEncryptionKey(ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK);
+  BLESecurity *ble_security = new BLESecurity();
+  ble_security->setAuthenticationMode(ESP_LE_AUTH_REQ_SC_MITM_BOND);
+  ble_security->setCapability(ESP_IO_CAP_IN);
+  ble_security->setKeySize(16);
+  ble_security->setInitEncryptionKey(ESP_BLE_ENC_KEY_MASK |
+                                     ESP_BLE_ID_KEY_MASK);
+  ble_security->setRespEncryptionKey(ESP_BLE_ENC_KEY_MASK |
+                                     ESP_BLE_ID_KEY_MASK);
 
-  BLEDevice::setSecurityCallbacks(new BleKeyboardSecurityCallbacks());
+  BLEDevice::setSecurityCallbacks(&ble_kb_security);
   Serial.println("BLE Keyboard initialized");
 
   // Enable automatic light-sleep (modem-sleep)
@@ -647,75 +793,52 @@ void setup() {
     Serial.println("Initial PM configuration:");
     Serial.printf("  max_freq_mhz: %d\n", initial_pm_config.max_freq_mhz);
     Serial.printf("  min_freq_mhz: %d\n", initial_pm_config.min_freq_mhz);
-    Serial.printf("  light_sleep_enable: %d\n", initial_pm_config.light_sleep_enable);
+    Serial.printf("  light_sleep_enable: %d\n",
+                  initial_pm_config.light_sleep_enable);
   } else {
     Serial.printf("Failed to get initial PM config: %d\n", get_err);
   }
 
   esp_sleep_enable_gpio_wakeup();
-  esp_pm_config_esp32s3_t pm_config = {
-      .max_freq_mhz = 40,
-      .min_freq_mhz = 40,
-      .light_sleep_enable = true
-  };
-  esp_err_t err = esp_pm_configure(&pm_config);
-  if (err == ESP_OK) {
-    Serial.println("Automatic light-sleep enabled (modem-sleep)");
-  } else {
-    Serial.printf("Failed to enable light-sleep: %d\n", err);
+
+  { // Set CPU frequency to 80..40 MHz with automatic light sleep enabled
+    esp_pm_config_esp32s3_t pm_config = {
+        .max_freq_mhz = 80, .min_freq_mhz = 40, .light_sleep_enable = true};
+    esp_err_t err = esp_pm_configure(&pm_config);
+    if (err == ESP_OK) {
+      Serial.println("Automatic light-sleep enabled (modem-sleep)");
+    } else {
+      Serial.printf("Failed to enable light-sleep: %d\n", err);
+    }
   }
-}
 
-void ReadBattery() {
-  int rawValue = analogRead(BATTERY_PIN);
-  float voltage = (rawValue * 4.187) / 2441.0; // measured with a multimeter
-  int batteryPercent =
-      map(constrain(voltage * 1000, 3000, 4185), 3000, 4185, 0, 100);
-
-  bleKeyboard.setBatteryLevel(batteryPercent);
-
-  // Serial.print("CPU Frequency: ");
-  // Serial.print(getCpuFrequencyMhz());
-  // Serial.println(" MHz");
-
-  // Serial.println("PM Locks:");
-  // esp_pm_dump_locks(stdout);
+  { // Create a battery reading timer
+    auto timer_args = esp_timer_create_args_t{
+        .callback = ReadBattery,
+        .arg = nullptr,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "ReadBattery",
+        .skip_unhandled_events = true,
+    };
+    esp_timer_handle_t battery_timer; // we don't have to keep it
+    esp_err_t err = esp_timer_create(&timer_args, &battery_timer);
+    if (err == ESP_OK) {
+      Serial.println("Battery timer created");
+      esp_timer_start_periodic(battery_timer, 5000000);
+    } else {
+      Serial.printf("Failed to create battery timer: %d\n", err);
+    }
+  }
 }
 
 void loop() {
+  ButtonChange event;
+  auto result = xQueueReceive(button_changes, &event, portMAX_DELAY);
+  if (result != pdTRUE)
+    return;
+  button_debouncers[event.button].OnChange(event.time);
 
-  auto now = millis();
-
-  for (int i = 0; i < TOTAL_KEYS; i++) {
-    currentKeyState[i] = digitalRead(keyPins[i]);
-
-    if (lastKeyState[i] == HIGH && currentKeyState[i] == LOW) {
-
-      Serial.printf("%s down (GPIO %d)\n", KeyToStr(i), keyPins[i]);
-
-      if (collectingPIN) {
-        // During PIN collection, add digit to PIN buffer
-        pinBuffer += (char)(i + '0');
-        Serial.printf("DEBUG: PIN buffer: '%s' (%d/%d)\n", pinBuffer.c_str(),
-                      pinBuffer.length(), PIN_LENGTH);
-      } else if (bleKeyboard.isConnected()) {
-        // Normal operation - send via BLE
-        OnKeyDown(i);
-      } else {
-        Serial.println("BLE not connected");
-      }
-    } else if (lastKeyState[i] == LOW && currentKeyState[i] == HIGH) {
-      Serial.printf("%s up (GPIO %d)\n", KeyToStr(i), keyPins[i]);
-      if (collectingPIN) {
-        // ignore
-      } else if (bleKeyboard.isConnected()) {
-        OnKeyUp(i);
-      }
-    }
-
-    lastKeyState[i] = currentKeyState[i];
-  }
-
+  /*
   if (chord_start_millis && now - chord_start_millis > CHORD_AUTOSTART_MILLIS) {
     auto action = CHORDS[Thumb()][Index()][Middle()][Ring()][Little()];
     if (action) {
@@ -725,11 +848,5 @@ void loop() {
       chord_start_millis = 0;
     }
   }
-
-  if (now - lastBatteryCheck > BATTERY_CHECK_INTERVAL) {
-    ReadBattery();
-    lastBatteryCheck = now;
-  }
-
-  delay(10);
+  */
 }
