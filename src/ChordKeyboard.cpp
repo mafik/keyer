@@ -110,7 +110,7 @@ Action *arpeggios[NUM_BUTTONS][NUM_BUTTONS];
 bool buttons_down[NUM_BUTTONS];
 Action *active_button_actions[NUM_BUTTONS];
 Action *chord_action;
-unsigned long chord_start_millis; // 0 means that no chord is being composed
+esp_timer_handle_t chord_autostart_timer;
 
 constexpr unsigned long ARPEGGIO_MIN_DELAY_MS = 80;
 constexpr unsigned long ARPEGGIO_MAX_DOWN_MS = 240;
@@ -370,12 +370,17 @@ void OnButtonDown(Button i) {
     // the same time (as long as they have been unique at press time)
     buttons_down[i] = false;
     // We also don't want to start a new chord
-    chord_start_millis = 0;
+    if (esp_timer_is_active(chord_autostart_timer)) {
+      esp_timer_stop(chord_autostart_timer);
+    }
     Serial.printf(" Unique action!\n");
     active_button_actions[i] = unique_action;
     unique_action->Start();
   } else {
-    chord_start_millis = now;
+    if (esp_timer_is_active(chord_autostart_timer)) {
+      esp_timer_stop(chord_autostart_timer);
+    }
+    esp_timer_start_once(chord_autostart_timer, CHORD_AUTOSTART_MILLIS * 1000);
   }
 }
 
@@ -389,7 +394,9 @@ void OnButtonUp(Button i) {
       if (action) {
         Serial.printf("Arpeggio action\n");
         action->Execute();
-        chord_start_millis = 0;
+        if (esp_timer_is_active(chord_autostart_timer)) {
+          esp_timer_stop(chord_autostart_timer);
+        }
       }
     }
     arpeggio_state = STATE_INACTIVE;
@@ -403,7 +410,8 @@ void OnButtonUp(Button i) {
     Serial.printf("Stopping chord action\n");
     chord_action->Stop();
     chord_action = nullptr;
-  } else if (chord_start_millis) {
+  } else if (esp_timer_is_active(chord_autostart_timer)) {
+    esp_timer_stop(chord_autostart_timer);
     auto action = CHORDS[Thumb()][Index()][Middle()][Ring()][Little()];
     if (action) {
       Serial.printf("Chord action\n");
@@ -420,7 +428,6 @@ void OnButtonUp(Button i) {
     } else {
       Serial.printf("No chord action\n");
     }
-    chord_start_millis = 0;
   }
 
   buttons_down[i] = false;
@@ -432,6 +439,19 @@ void OnButtonUp(Button i) {
   bool all_buttons_up = !any_button_down;
   if (all_buttons_up) {
     arpeggio_state = STATE_READY;
+  }
+}
+
+void OnChordAutostart() {
+  if (chord_action) {
+    Serial.printf("ERROR: Chord action already active\n");
+    return;
+  }
+  auto action = CHORDS[Thumb()][Index()][Middle()][Ring()][Little()];
+  if (action) {
+    Serial.printf("Starting chord hold\n");
+    action->Start();
+    chord_action = action;
   }
 }
 
@@ -538,17 +558,20 @@ void ReadBattery(void *) {
 // Zero-latency button debouncer.
 //
 // Initial state change is immediately registered as button press or release.
-// Subsequent state changes are ignored for a short time window (a couple of milliseconds).
-// After a period of no activity, the GPIO state is read directly to verify the current button state.
+// Subsequent state changes are ignored for a short time window (a couple of
+// milliseconds). After a period of no activity, the GPIO state is read directly
+// to verify the current button state.
 //
-// The approach used by this debouncer results in zero latency but a minimal press duration equal to the debounce window.
+// The approach used by this debouncer results in zero latency but a minimal
+// press duration equal to the debounce window.
 struct ButtonDebouncer {
   Button i;
   bool pressed_state;
   esp_timer_handle_t timer;
   int64_t last_change;
 
-  // Experimentally, the shortest physically possible key press was a tad over 15ms
+  // Experimentally, the shortest physically possible key press was a tad over
+  // 15ms
   constexpr static int64_t kDebounceMicroseconds = 15 * 1000;
 
   bool ReadPressedGpio() { return digitalRead(kButtonPin[i]) == LOW; }
@@ -560,19 +583,20 @@ struct ButtonDebouncer {
     last_change = esp_timer_get_time();
     pressed_state = ReadPressedGpio();
 
-    auto args = esp_timer_create_args_t{
-        .callback = [](void* arg) {
-            ButtonDebouncer* debouncer = static_cast<ButtonDebouncer*>(arg);
-            debouncer->OnTimer();
-        },
-        .arg = this,
-        .dispatch_method = ESP_TIMER_TASK,
-        .name = ButtonToStr(i),
-        .skip_unhandled_events = false
-    };
+    auto args =
+        esp_timer_create_args_t{.callback =
+                                    [](void *arg) {
+                                      ButtonDebouncer *debouncer =
+                                          static_cast<ButtonDebouncer *>(arg);
+                                      debouncer->OnTimer();
+                                    },
+                                .arg = this,
+                                .dispatch_method = ESP_TIMER_TASK,
+                                .name = ButtonToStr(i),
+                                .skip_unhandled_events = false};
     auto timer_result = esp_timer_create(&args, &timer);
     if (timer_result != ESP_OK) {
-        Serial.printf("Failed to create timer for button %s\n", ButtonToStr(i));
+      Serial.printf("Failed to create timer for button %s\n", ButtonToStr(i));
     }
   }
 
@@ -580,59 +604,59 @@ struct ButtonDebouncer {
     auto delta = time - last_change;
     last_change = time;
     if (delta <= kDebounceMicroseconds) {
-        // Ignore state changes that happen within the debounce window.
-        // If it leads to any issues, then the ground-truth timer will fix them.
+      // Ignore state changes that happen within the debounce window.
+      // If it leads to any issues, then the ground-truth timer will fix them.
     } else {
-        pressed_state = !pressed_state;
-        ReportPressedState();
+      pressed_state = !pressed_state;
+      ReportPressedState();
     }
     { // Schedule a ground truth read in kDebounceMicroseconds
-        if (esp_timer_is_active(timer)) {
-            esp_timer_stop(timer);
-        }
-        esp_timer_start_once(timer, kDebounceMicroseconds);
+      if (esp_timer_is_active(timer)) {
+        esp_timer_stop(timer);
+      }
+      esp_timer_start_once(timer, kDebounceMicroseconds);
     }
   }
 
   void OnTimer() {
-      bool pressed_gpio = ReadPressedGpio();
-      if (pressed_gpio != pressed_state) {
-          pressed_state = pressed_gpio;
-          last_change = esp_timer_get_time();
-          ReportPressedState();
-      }
+    bool pressed_gpio = ReadPressedGpio();
+    if (pressed_gpio != pressed_state) {
+      pressed_state = pressed_gpio;
+      last_change = esp_timer_get_time();
+      ReportPressedState();
+    }
   }
 
   void ReportPressedState() {
-      if (pressed_state) {
-          if (ble_kb_security.pass_key_collecting) {
-            // During PIN collection, add digit to PIN buffer
-            ble_kb_security.pass_key_buffer += (char)(i + '0');
-            Serial.printf("DEBUG: PIN buffer: '%s' (%d/%d)\n",
-                          ble_kb_security.pass_key_buffer.c_str(),
-                          ble_kb_security.pass_key_buffer.length(),
-                          ble_kb_security.PASS_KEY_LENGTH);
-          } else if (ble_keyboard.isConnected()) {
-            // Normal operation - send via BLE
-            OnButtonDown(i);
-          } else {
-            Serial.println("BLE not connected");
-          }
+    if (pressed_state) {
+      if (ble_kb_security.pass_key_collecting) {
+        // During PIN collection, add digit to PIN buffer
+        ble_kb_security.pass_key_buffer += (char)(i + '0');
+        Serial.printf("DEBUG: PIN buffer: '%s' (%d/%d)\n",
+                      ble_kb_security.pass_key_buffer.c_str(),
+                      ble_kb_security.pass_key_buffer.length(),
+                      ble_kb_security.PASS_KEY_LENGTH);
+      } else if (ble_keyboard.isConnected()) {
+        // Normal operation - send via BLE
+        OnButtonDown(i);
       } else {
-          if (ble_kb_security.pass_key_collecting) {
-            // ignore
-          } else if (ble_keyboard.isConnected()) {
-            OnButtonUp(i);
-          }
+        Serial.println("BLE not connected");
       }
+    } else {
+      if (ble_kb_security.pass_key_collecting) {
+        // ignore
+      } else if (ble_keyboard.isConnected()) {
+        OnButtonUp(i);
+      }
+    }
   }
 } button_debouncers[NUM_BUTTONS];
 
 void setup() {
 
-  Serial.begin(115200);
-  Serial.println("Starting Chord Keyboard...");
-  // Serial.end();
+  // Uncomment to enable serial debug output
+  // Serial.begin(115200);
+  // Serial.println("Starting Chord Keyboard...");
 
   // Arpeggios are global
   arpeggios[THUMB_1][INDEX_3] = Mod(KEY_RIGHT_CTRL);
@@ -829,6 +853,20 @@ void setup() {
       Serial.printf("Failed to create battery timer: %d\n", err);
     }
   }
+
+  { // Create chord autostart timer
+    auto args = esp_timer_create_args_t{
+        .callback = [](void *arg) { OnChordAutostart(); },
+        .arg = nullptr,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "Chord Autostart",
+        .skip_unhandled_events = false};
+    auto timer_result = esp_timer_create(&args, &chord_autostart_timer);
+    if (timer_result != ESP_OK) {
+      Serial.printf("Failed to create timer for chord autostart: %d\n",
+                    timer_result);
+    }
+  }
 }
 
 void loop() {
@@ -837,16 +875,4 @@ void loop() {
   if (result != pdTRUE)
     return;
   button_debouncers[event.button].OnChange(event.time);
-
-  /*
-  if (chord_start_millis && now - chord_start_millis > CHORD_AUTOSTART_MILLIS) {
-    auto action = CHORDS[Thumb()][Index()][Middle()][Ring()][Little()];
-    if (action) {
-      Serial.printf("Timeout action\n");
-      action->Start();
-      chord_action = action;
-      chord_start_millis = 0;
-    }
-  }
-  */
 }
