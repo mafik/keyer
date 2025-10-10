@@ -18,23 +18,52 @@ function initRender() {
 }
 
 function resizeCanvas() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  const dpr = window.devicePixelRatio || 1;
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+
+  // Set canvas size accounting for device pixel ratio
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+
+  // Scale canvas CSS size back to logical size
+  canvas.style.width = width + "px";
+  canvas.style.height = height + "px";
+
+  // Scale context to account for device pixel ratio
+  ctx.scale(dpr, dpr);
 }
 
 function render() {
-  const width = canvas.width;
-  const height = canvas.height;
+  const width = window.innerWidth;
+  const height = window.innerHeight;
 
   // Clear canvas
   ctx.fillStyle = "#1e1e1e";
   ctx.fillRect(0, 0, width, height);
+
+  // Calculate scale for learning sequence and chord grid
+  const charWidth = 30;
+  const requiredWidth = learning_sequence.length * charWidth;
+  const maxWidth = width - 40; // Leave 20px margin on each side
+  const scale = requiredWidth > maxWidth ? maxWidth / requiredWidth : 1;
+
+  // Save context and apply scaling if needed
+  ctx.save();
+  if (scale < 1) {
+    // Scale from center horizontally
+    ctx.translate(width / 2, 0);
+    ctx.scale(scale, scale);
+    ctx.translate(-width / 2, 0);
+  }
 
   // Render learning sequence at top
   renderLearningSequence(ctx, width);
 
   // Render chord grid below learning sequence
   renderChordGrid(ctx, width);
+
+  ctx.restore();
 
   // Render main text area
   renderTextArea(ctx, width, height);
