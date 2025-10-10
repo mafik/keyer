@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Keyer Layout Tutor</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                overflow: hidden;
+                font-family: "Courier New", monospace;
+            }
+
+            #canvas {
+                display: block;
+                width: 100vw;
+                height: 100vh;
+            }
+        </style>
+    </head>
+    <body>
+        <canvas id="canvas"></canvas>
+
+        <script src="layout.js"></script>
+        <script src="words_dictionary.js"></script>
+        <script src="state.js"></script>
+        <script src="word_picker.js"></script>
+        <script src="tutor.js"></script>
+        <script src="render.js"></script>
+    </body>
+</html>
