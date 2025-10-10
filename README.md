@@ -19,7 +19,7 @@ Firmware & goodies for making a [Keyer](https://en.wikipedia.org/wiki/Keyer) (on
 
 **Features**:
 
-* **Minimal finger movement**: it's like typing with all the keys on your home row all the time
+* **Minimal finger movement**: it's like typing with all the keys on your home row all the time (here is [a video](https://www.youtube.com/watch?v=Ijwo7SQQ73Q) of typing on Typeware)
 * **Free hand while typing**: you can use your other hand to sip tea while typing (or move the mouse - if you're not a tea drinking type)
 * **Always near your hand** - keyer can be attached to a glove so you can just release it and have both of your hands free. Now you can drink your tea and move the mouse at the same time.
 * **Tons of chords**: a 10-key keyer (3 keys on thumb, 2 index, 2 middle, 2 ring, 1 pinky) can express up to 215 chords (&times; 2 when counting hold-chord alternatives). With so many chords you can lose a finger and still touch type (carpenters will love it!)
