@@ -4,7 +4,7 @@ let newIndex = 0; // Position of the new key being learned (start at 1 to skip s
 let oldIndex = -1; // Position of an already-known key
 
 // Thresholds for advancement
-const targetWPM = 40;
+const targetWPM = 30;
 const targetAccuracy = 0.9;
 const statsHistoryWindowSize = 30; // Number of recent characters for WPM calculation
 

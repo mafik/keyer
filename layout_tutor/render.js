@@ -87,7 +87,7 @@ function render() {
 function renderLearningSequence(ctx, width) {
   ctx.font = "24px monospace";
   const charWidth = 30;
-  const startX = width / 2 - (learning_sequence.length * charWidth) / 2;
+  const startX = width / 2 - (learning_sequence.length * charWidth) / 2 + 40;
   const y = 50;
 
   // Characters
@@ -118,7 +118,7 @@ function renderLearningSequence(ctx, width) {
 
 function renderChordGrid(ctx, width) {
   const charWidth = 30;
-  const startX = width / 2 - (learning_sequence.length * charWidth) / 2;
+  const startX = width / 2 - (learning_sequence.length * charWidth) / 2 + 40;
   const gridStartY = 80;
   const lineSpacing = 25;
   const circleRadius = 8;
@@ -134,7 +134,7 @@ function renderChordGrid(ctx, width) {
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(startX - 15, y);
-    ctx.lineTo(startX + learning_sequence.length * charWidth + 15, y);
+    ctx.lineTo(startX + learning_sequence.length * charWidth - 15, y);
     ctx.stroke();
 
     // Draw finger label on the left
