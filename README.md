@@ -21,66 +21,69 @@ One keyer manufacturer made a nice video showing typing in action: [youtube.com/
 
 **Features**:
 
-* **Minimal finger movement**: it's like typing with all the keys on your home row all the time
-* **Free hand while typing**: you can use your other hand to sip tea while typing (or move the mouse - if you're not a tea drinking type)
-* **Always near your hand** - keyer can be attached to a glove so you can just release it and have both of your hands free. Now you can drink your tea and move the mouse at the same time.
-* **Tons of chords**: a 10-key keyer (3 keys on thumb, 2 index, 2 middle, 2 ring, 1 pinky) can express up to 215 chords (&times; 2 when counting hold-chord alternatives). With so many chords you can lose a finger and still touch type (carpenters will love it!)
-* **Arpeggios**: an additional 2 &times; 78 arpeggios - rolling motion over two keys that can be executed in two directions and can be used for even more input options.
-* **Multiple layers**: if the 586 shortcuts available on the base layer are somehow not enough for you
-* **Rolling chords**: when two subsequent chords you're entering share some finger positions you can only move the finger that changes position. When combined with optimized layouts (see the next point) typing is like walking through the keys one finger at a time.
-* **Optimized layout**: a bundled layout optimizer will perform a combinatorial search over all possible layouts to find the optimal one for typing the texts that you give it (or for your custom finger press / finger movement cost function)
-* **Ergonomic layout 🖖**: did you know your fingers share the neuro-motor pathways and can't always move independently? The layout generator will avoid finger combinations that are hard to press.
-* **Low-latency**: the firmware uses hardware interrupts to be more responsive than polling-based keyboards and it also does debouncing in software to be more responsive capacitor-based debouncers.
-* **Power for months**: a massive 18650 battery + underclocked CPU + firmware able to sleep without losing the Bluetooth connection + hardware power switch on the board mean that you will charge it about as often as a Casio watch.
-* **🕶️**: combine it with smart glasses to control your computer (or smartphone) without looking or touching. It's like [Meta EMG wristband](https://www.youtube.com/watch?v=wteFJ78qVdM) but actually working!
-* **Easy to build**: did you ever play with Play-Doh? This keyer was built with modelling clay (baked in the oven for 30 minutes). No 3D printing. No custom PCBs. You can make it with parts from amazon, a hot glue gun and a soldering iron.
-* **Perfect fit**: you build it yourself, literally molding it to the shape of your hand. You can't get more ergonomic than that.
-* **Cheap to build**: it's less than 50 USD to make one yourself. Mechanical keyboards are a cheap hobby now. Who would have thought!
+- **Minimal finger movement**: it's like typing with all the keys on your home row all the time
+- **Free hand while typing**: you can use your other hand to sip tea while typing (or move the mouse - if you're not a tea drinking type)
+- **Always near your hand** - keyer can be attached to a glove so you can just release it and have both of your hands free. Now you can drink your tea and move the mouse at the same time.
+- **Tons of chords**: a 10-key keyer (3 keys on thumb, 2 index, 2 middle, 2 ring, 1 pinky) can express up to 215 chords (&times; 2 when counting hold-chord alternatives). With so many chords you can lose a finger and still touch type (carpenters will love it!)
+- **Arpeggios**: an additional 2 &times; 78 arpeggios - rolling motion over two keys that can be executed in two directions and can be used for even more input options.
+- **Multiple layers**: if the 586 shortcuts available on the base layer are somehow not enough for you
+- **Rolling chords**: when two subsequent chords you're entering share some finger positions you can only move the finger that changes position. When combined with optimized layouts (see the next point) typing is like walking through the keys one finger at a time.
+- **Optimized layout**: a bundled layout optimizer will perform a combinatorial search over all possible layouts to find the optimal one for typing the texts that you give it (or for your custom finger press / finger movement cost function)
+- **Ergonomic layout 🖖**: did you know your fingers share the neuro-motor pathways and can't always move independently? The layout generator will avoid finger combinations that are hard to press.
+- **Low-latency**: the firmware uses hardware interrupts to be more responsive than polling-based keyboards and it also does debouncing in software to be more responsive capacitor-based debouncers.
+- **Power for months**: a massive 18650 battery + underclocked CPU + firmware able to sleep without losing the Bluetooth connection + hardware power switch on the board mean that you will charge it about as often as a Casio watch.
+- **🕶️**: combine it with smart glasses to control your computer (or smartphone) without looking or touching. It's like [Meta EMG wristband](https://www.youtube.com/watch?v=wteFJ78qVdM) but actually working!
+- **Easy to build**: did you ever play with Play-Doh? This keyer was built with modelling clay (baked in the oven for 30 minutes). No 3D printing. No custom PCBs. You can make it with parts from amazon, a hot glue gun and a soldering iron.
+- **Perfect fit**: you build it yourself, literally molding it to the shape of your hand. You can't get more ergonomic than that.
+- **Cheap to build**: it's less than 50 USD to make one yourself. Mechanical keyboards are a cheap hobby now. Who would have thought!
 
 ## 🐾 Links (a.k.a. 💫 Awesome Keyers 🎹)
+
 (Send me your links on Bluesky [bsky.app/profile/mrogalski.eu](https://bsky.app/profile/mrogalski.eu) so that I can add them here!)
 
-* [Penti Chorded Keyboard](https://software-lab.de/penti.html) - A software keyer that can run on a touchscreen. Notable for its use of arpeggios.
-* [ESP32-BLE-Keyboard](https://github.com/T-vK/ESP32-BLE-Keyboard/tree/master) - Excellent library for turning ESP32s into custom keyboards.
+- [Penti Chorded Keyboard](https://software-lab.de/penti.html) - A software keyer that can run on a touchscreen. Notable for its use of arpeggios.
+- [ESP32-BLE-Keyboard](https://github.com/T-vK/ESP32-BLE-Keyboard/tree/master) - Excellent library for turning ESP32s into custom keyboards.
 
 **3d-printed keyers**:
-* [Typeware](https://www.youtube.com/watch?v=Ijwo7SQQ73Q) - This is what you can make if you have an access to a 3d printer and unlimited time to design
-* [Keyyyyyyyys!](https://www.stavros.io/posts/keyyyyyyyys/) - Can you get scrappier than that?
+
+- [Typeware](https://www.youtube.com/watch?v=Ijwo7SQQ73Q) - This is what you can make if you have an access to a 3d printer and unlimited time to design
+- [Keyyyyyyyys!](https://www.stavros.io/posts/keyyyyyyyys/) - Can you get scrappier than that?
 
 **Commercial products**:
-* [Twiddler](https://www.mytwiddler.com/) - 19 tiny keys + touchpad for $229
-* [Decatext](https://decatxt.com/) - 10 large keys + typing guide right on the device for $175 (its author also shared the promo code "Neural" for $15 off!)
-* [Typeware](https://typeware.tech/) - ultra lightweight & probably the best all-around design for $273 (pre-orders only 😔)
+
+- [Twiddler](https://www.mytwiddler.com/) - 19 tiny keys + touchpad for $229
+- [Decatext](https://decatxt.com/) - 10 large keys + typing guide right on the device for $175 (its author also shared the promo code "Neural" for $15 off!)
+- [Typeware](https://typeware.tech/) - ultra lightweight & probably the best all-around design for $273 (pre-orders only 😔)
 
 ## Making your own keyer
 
-*Welcome to the bottom of the ergonomic mechanical keyboard rabbit hole.*
+_Welcome to the bottom of the ergonomic mechanical keyboard rabbit hole._
 
 Let's start with some shopping.
 
 ### Bill of materials
 
-* [LILYGO T-Energy S3](https://lilygo.cc/products/t-energy-s3) development board ($9.70)
-* [Samsung INR18650-35E](https://www.18650batterystore.com/products/samsung-35e) 3500mAh Li-ion battery (~$2.95)
-* [FIMO professional modelling clay](https://www.staedtler.com/intl/en/products/fimo-modelling-clay-accessories/fimo-professional/fimo-professional-8040-oven-bake-modelling-clay-m8040/) ([$2.75](https://www.amazon.com/Staedtler-Professional-Hardening-Modelling-Chocolate/dp/B00WUCFIK8/))
-   * Alternatively, one of the [FIMO effect](https://www.staedtler.com/intl/en/products/fimo-modelling-clay-accessories/fimo-effect/) modelling clays if you'd like to make your keyer out of [stone](https://www.staedtler.com/intl/en/products/fimo-modelling-clay-accessories/fimo-effect/fimo-effect-8010-stone-oven-bake-modelling-clay-m8010-stone/)
-* 10 &times; [Gateron G Pro 3.0 mechanical switches](https://www.amazon.com/s?k=gateron+brown+10pcs) (~$10)
-   * Any other switches of your choice will work
-* 10 &times; [Keycaps](https://www.amazon.com/s?k=keycaps+10pcs) (~$8)
-   * You only need ten of them so feel free to get the [coolest](https://www.amazon.com/s?k=cat+paw+keycap) keycaps you can find
-* 1m &times; AWG 18 rigid, insulated copper wire (~$1)
-   * Get it from a local hardware store, the online stores are ripping you off
-   * You can come with your development board to see which wire gauge fits through the holes on the board
+- [LILYGO T-Energy S3](https://lilygo.cc/products/t-energy-s3) development board ($9.70)
+- [Samsung INR18650-35E](https://www.18650batterystore.com/products/samsung-35e) 3500mAh Li-ion battery (~$2.95)
+- [FIMO professional modelling clay](https://www.staedtler.com/intl/en/products/fimo-modelling-clay-accessories/fimo-professional/fimo-professional-8040-oven-bake-modelling-clay-m8040/) ([$2.75](https://www.amazon.com/Staedtler-Professional-Hardening-Modelling-Chocolate/dp/B00WUCFIK8/))
+  - Alternatively, one of the [FIMO effect](https://www.staedtler.com/intl/en/products/fimo-modelling-clay-accessories/fimo-effect/) modelling clays if you'd like to make your keyer out of [stone](https://www.staedtler.com/intl/en/products/fimo-modelling-clay-accessories/fimo-effect/fimo-effect-8010-stone-oven-bake-modelling-clay-m8010-stone/)
+- 10 &times; [Gateron G Pro 3.0 mechanical switches](https://www.amazon.com/s?k=gateron+brown+10pcs) (~$10)
+  - Any other switches of your choice will work
+- 10 &times; [Keycaps](https://www.amazon.com/s?k=keycaps+10pcs) (~$8)
+  - You only need ten of them so feel free to get the [coolest](https://www.amazon.com/s?k=cat+paw+keycap) keycaps you can find
+- 1m &times; AWG 18 rigid, insulated copper wire (~$1)
+  - Get it from a local hardware store, the online stores are ripping you off
+  - You can come with your development board to see which wire gauge fits through the holes on the board
 
 Total: $34.40 (+shipping)
 
 ### Tools
 
-* pliers - for bending the copper wire
-* a knife (or a set of sharp teeth) - for stripping the cable insulation
-* (optional) nitryl gloves - for not getting dirty while working with the modelling clay
-* hot glue gun + hot glue sticks - for attaching the components to a wire scaffolding
-* soldering iron + solder wire - for soldering
+- pliers - for bending the copper wire
+- a knife (or a set of sharp teeth) - for stripping the cable insulation
+- (optional) nitryl gloves - for not getting dirty while working with the modelling clay
+- hot glue gun + hot glue sticks - for attaching the components to a wire scaffolding
+- soldering iron + solder wire - for soldering
 
 ### Forming a skeleton (day 1)
 
@@ -151,7 +154,7 @@ Alright, that's it! You may wonder - how it is possible that we've finished the 
 
 ### 🌌 Optimizing layouts (day 4)
 
-Everybody has different typing patterns and what works best for me will likely not be the best one for you. This is especially important for a keyer. Do you intend to use your keyer to play games? Or chat with AI? Blast terminal commands? Write notes? Emails? A custom keyboard layout will help you be more efficient at doing the things you're doing. The default layout was optimized to minimize the text entry time for a mix of English, Polish, C++ and Python code. That's probably not exactly what you'll be using your keyer for. That's why it's worth taking a moment to do this properly - and make on just for yourself.
+Everybody has different typing patterns and what works best for me will likely not be the best one for you. This is especially important for a keyer. Do you intend to use your keyer to play games? Or chat with AI? Blast terminal commands? Write notes? Emails? A custom keyboard layout will help you be more efficient at doing the things you're doing. The default layout was optimized to minimize the text entry time for a mix of English, Polish, C++ and Python code. That's probably not exactly what you'll be using your keyer for. That's why it's worth taking a moment to do this properly - and make one just for yourself.
 
 If you want to squeeze out the maximum efficiency then you might be interested in the ability to write **complete words** by pressing a single chord. Yep, that's right - you can program a chord to enter your 20-character super secret password of mixed letters, digits and that single punctuation character and a capital letter. Or your credit card number. Or `¯\\_(ツ)_/¯`. It's your keyer - you can trust it with those things.
 
@@ -185,6 +188,13 @@ The last one, and the one that is running in your terminal right now is based on
 
 This is what you can see in your terminal. It's a **pheromone matrix**. It's a measure of how much pheromone the virtual ants deposited by on a given key/chord assignment. As the ants follow the pheromone trail they start to focus on good layouts. The pheromone matrix will start to look more and more sparse. Eventually all of the ants will follow the same key/chord assignment. That's our perfect layout.
 
+<table>
+  <tr>
+    <td><img src="photos/pheromone1.png" alt="Pheromone matrix early in the search process"></td>
+    <td><img src="photos/pheromone2.png" alt="Pheromone matrix once the search finished"></td>
+  </tr>
+</table>
+
 On my PC it took 7004 generations (a couple of hours). In each generation 240 ants went out to search food (the best layout) and only the victorious ant was allowed to deposit the pheromone. The pheromone evaporates a little, so that eventually the quantity of pheromone starts to stabilize. It's a fairly slow process - but only because our ants are searching through mind boggingly large space. Given the complexity of the problem, I think they're doing quite well!
 
 You will find the resulting layout in best_layout.txt . I do recommend to take a look at it and see how you'd type some of common words that you might enter frequently.
@@ -205,9 +215,9 @@ So that's all from me. I'll let you get some practice now!
 
 ## Ideas
 
-* Add an I2C [6-axis accelerometer](https://www.sparkfun.com/sparkfun-micro-6dof-imu-ism330dhcx-qwiic.html) and make the keyer function as an air mouse (like some LG remotes)
-* Reduce the number of keys - 6 keys (2 thumb, 1 index, 1 middle, 1 ring, 1 pinky) should actually be enough for most uses
-* Use the logkeys utility to record some actual IBM PC keysyms as they're entered on the regular keyboard. Then use them for optimizing. This should improve the placement of some sequences such as Ctrl+C / Z, Alt+Tab & function keys, all which are not really represented in the training corpus.
+- Add an I2C [6-axis accelerometer](https://www.sparkfun.com/sparkfun-micro-6dof-imu-ism330dhcx-qwiic.html) and make the keyer function as an air mouse (like some LG remotes)
+- Reduce the number of keys - 6 keys (2 thumb, 1 index, 1 middle, 1 ring, 1 pinky) should actually be enough for most uses
+- Use the logkeys utility to record some actual IBM PC keysyms as they're entered on the regular keyboard. Then use them for optimizing. This should improve the placement of some sequences such as Ctrl+C / Z, Alt+Tab & function keys, all which are not really represented in the training corpus.
 
 ## Misc commands
 
@@ -221,12 +231,12 @@ $ pio run --target clean
 
 ## Repository structure
 
-* `layout_generator/` - a set of Python scripts for generating an optimized chord layout
-  * `corpus/` - directory for text files that will be used for evaluating the layout
-  * `planner.py` - main entry point for doing the optimization
-  * `qwerty_analysis.py` - converts the text files into a sequence of equivalent IBM PC keyboard keys
-  * `keyer_simulator.cpp` - simulates text entry on the keyer
-  * `beam_optimizer.py` - optional utility to double-check whether the generated layout is (locally) optimal
-* `src/` - code that runs on the ESP32
-* `sdkconfig.ChordKeyboard` - configuration for the ESP-IDF firmware
-* `layout_tutor/` - simple webapp for learning the chording patterns
+- `layout_generator/` - a set of Python scripts for generating an optimized chord layout
+  - `corpus/` - directory for text files that will be used for evaluating the layout
+  - `planner.py` - main entry point for doing the optimization
+  - `qwerty_analysis.py` - converts the text files into a sequence of equivalent IBM PC keyboard keys
+  - `keyer_simulator.cpp` - simulates text entry on the keyer
+  - `beam_optimizer.py` - optional utility to double-check whether the generated layout is (locally) optimal
+- `src/` - code that runs on the ESP32
+- `sdkconfig.ChordKeyboard` - configuration for the ESP-IDF firmware
+- `layout_tutor/` - simple webapp for learning the chording patterns
