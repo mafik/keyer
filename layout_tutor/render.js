@@ -46,7 +46,19 @@ function render() {
   const charWidth = 30;
   const requiredWidth = learning_sequence.length * charWidth;
   const maxWidth = width - 40; // Leave 20px margin on each side
-  const scale = requiredWidth > maxWidth ? maxWidth / requiredWidth : 1;
+
+  // Calculate height constraint: learning sequence (50 + text height) + chord grid (80 + 5*25)
+  const sequenceAndGridHeight = 80 + 5 * 25;
+  const maxHeight = (height * 2) / 5;
+
+  // Apply both width and height scaling constraints
+  let scale = 1;
+  if (requiredWidth > maxWidth) {
+    scale = maxWidth / requiredWidth;
+  }
+  if (sequenceAndGridHeight * scale > maxHeight) {
+    scale = Math.min(scale, maxHeight / sequenceAndGridHeight);
+  }
 
   // Save context and apply scaling if needed
   ctx.save();
