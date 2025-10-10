@@ -1,7 +1,6 @@
 # 𝖒𝖆𝖋's Keyer 🎹
 
 Firmware & goodies for making a [Keyer](https://en.wikipedia.org/wiki/Keyer) (one-handed version of a [chorded keyboard](https://en.wikipedia.org/wiki/Chorded_keyboard)).
-## Photos
 
 <table>
   <tr>
@@ -23,26 +22,35 @@ Firmware & goodies for making a [Keyer](https://en.wikipedia.org/wiki/Keyer) (on
 * **Minimal finger movement**: it's like typing with all the keys on your home row all the time
 * **Free hand while typing**: you can use your other hand to sip tea while typing (or move the mouse - if you're not a tea drinking type)
 * **Always near your hand** - keyer can be attached to a glove so you can just release it and have both of your hands free. Now you can drink your tea and move the mouse at the same time.
-* **Tons of chords**: a 10-key keyer (3 keys on thumb, 2 index, 2 middle, 2 ring, 1 pinky) can express up to 215 chords (&times; 2 when counting hold-chord alternatives). With so many chords you can lose a finger and still touch type (carpenters love it!)
+* **Tons of chords**: a 10-key keyer (3 keys on thumb, 2 index, 2 middle, 2 ring, 1 pinky) can express up to 215 chords (&times; 2 when counting hold-chord alternatives). With so many chords you can lose a finger and still touch type (carpenters will love it!)
 * **Arpeggios**: an additional 2 &times; 78 arpeggios - rolling motion over two keys that can be executed in two directions and can be used for even more input options.
 * **Multiple layers**: if the 586 shortcuts available on the base layer are somehow not enough for you
 * **Rolling chords**: when two subsequent chords you're entering share some finger positions you can only move the finger that changes position. When combined with optimized layouts (see the next point) typing is like walking through the keys one finger at a time.
 * **Optimized layout**: a bundled layout optimizer will perform a combinatorial search over all possible layouts to find the optimal one for typing the texts that you give it (or for your custom finger press / finger movement cost function)
 * **Ergonomic layout 🖖**: did you know your fingers share the neuro-motor pathways and can't always move independently? The layout generator will avoid finger combinations that are hard to press.
-* **Low-latency**: the firmware relies on hardware interrupts and a zero-latency digital debouncing algorithm to make the keys more responsive than polling-based keyboards (and keyboards with capacitor-based debouncers).
+* **Low-latency**: the firmware uses hardware interrupts to be more responsive than polling-based keyboards and it also does debouncing in software to be more responsive capacitor-based debouncers.
 * **Power for months**: a massive 18650 battery + underclocked CPU + firmware able to sleep without losing the Bluetooth connection + hardware power switch on the board mean that you will charge it about as often as a Casio watch.
 * **🕶️**: combine it with smart glasses to control your computer (or smartphone) without looking or touching. It's like [Meta EMG wristband](https://www.youtube.com/watch?v=wteFJ78qVdM) but actually working!
 * **Easy to build**: did you ever play with Play-Doh? This keyer was built with modelling clay (baked in the oven for 30 minutes). No 3D printing. No custom PCBs. You can make it with parts from amazon, a hot glue gun and a soldering iron.
-* **Perfect fit**: you build it yourself, literally modelling it to the shape of your hand. You can't get more ergonomic than that.
-* **Cheap to build**: it's less than 50 USD to make one yourself. Mechanical keyboards are a cheap hobby now!
+* **Perfect fit**: you build it yourself, literally molding it to the shape of your hand. You can't get more ergonomic than that.
+* **Cheap to build**: it's less than 50 USD to make one yourself. Mechanical keyboards are a cheap hobby now. Who would have thought!
 
-## Interesting links
+## 🐾 Links (a.k.a. 💫 Awesome Keyers 🎹)
+(Send me your links on Bluesky [bsky.app/profile/mrogalski.eu](https://bsky.app/profile/mrogalski.eu) so that I can add them here!)
 
 * [Penti Chorded Keyboard](https://software-lab.de/penti.html) - A software keyer that can run on a touchscreen. Notable for its use of arpeggios.
-* [Keyyyyyyyys!](https://www.stavros.io/posts/keyyyyyyyys/) - Can you get cheaper than that?
-* [ESP32-BLE-Keyboard](https://github.com/T-vK/ESP32-BLE-Keyboard/tree/master) - The best way to emulate a BLE keyboard from ESP32.
+* [ESP32-BLE-Keyboard](https://github.com/T-vK/ESP32-BLE-Keyboard/tree/master) - Excellent library for turning ESP32s into custom keyboards.
 
-## Building instructions
+**3d-printed keyers**:
+* [Typeware](https://www.youtube.com/watch?v=Ijwo7SQQ73Q) - This is what you can make if you have an access to a 3d printer and unlimited time to design
+* [Keyyyyyyyys!](https://www.stavros.io/posts/keyyyyyyyys/) - Can you get scrappier than that?
+
+**Commercial products**:
+* [Twiddler](https://www.mytwiddler.com/) - 19 tiny keys + touchpad for $229
+* [Decatext](https://decatxt.com/) - 10 large keys + typing guide right on the device for $175 (its author also shared the promo code "Neural" for $15 off!)
+* [Typeware](https://typeware.tech/) - ultra lightweight & probably the best all-around design for $273 (pre-orders only 😔)
+
+## Making your own keyer
 
 *Welcome to the bottom of the ergonomic mechanical keyboard rabbit hole.*
 
@@ -55,7 +63,7 @@ Let's start with some shopping.
 * [FIMO professional modelling clay](https://www.staedtler.com/intl/en/products/fimo-modelling-clay-accessories/fimo-professional/fimo-professional-8040-oven-bake-modelling-clay-m8040/) ([$2.75](https://www.amazon.com/Staedtler-Professional-Hardening-Modelling-Chocolate/dp/B00WUCFIK8/))
    * Alternatively, one of the [FIMO effect](https://www.staedtler.com/intl/en/products/fimo-modelling-clay-accessories/fimo-effect/) modelling clays if you'd like to make your keyer out of [stone](https://www.staedtler.com/intl/en/products/fimo-modelling-clay-accessories/fimo-effect/fimo-effect-8010-stone-oven-bake-modelling-clay-m8010-stone/)
 * 10 &times; [Gateron G Pro 3.0 mechanical switches](https://www.amazon.com/s?k=gateron+brown+10pcs) (~$10)
-   * Alternatively other switches of your choice
+   * Any other switches of your choice will work
 * 10 &times; [Keycaps](https://www.amazon.com/s?k=keycaps+10pcs) (~$8)
    * You only need ten of them so feel free to get the [coolest](https://www.amazon.com/s?k=cat+paw+keycap) keycaps you can find
 * 1m &times; AWG 18 rigid, insulated copper wire (~$1)
@@ -76,7 +84,7 @@ Total: $34.40 (+shipping)
 
 With all the materials and tools in hand, the first step is to form a metal scaffolding which will hold the switches in convenient positions. Traditional electronics devices tends to have "exoskeletons" - they're supported by an external case that surrounds them and protects them from your greasy fingers. This device is built around an endoskeleton of copper wire. We'll cover this endoskeleton with modelling clay in a moment. I hope you bought the thickest wire you could (while still fitting through the holes on the board) because in this device it's structural.
 
-We'll start with a "GND loop". Cut a section of wire - about 20 or 30cm. Strip its insulation & insert it into one of the GND holes on the board. Solder it in place - it should be firmly attached to the board. Insert the battery and take the board in your hand. Position it like you'd like it to stay in your hand and start bending the wire into a loop that goes through all the places where key switches bases are going to be placed. For some extra rigidity (long wire is fairly bendy) lead the other end of the wire back into another GND hole on the board. You can take the switches with keycaps and place them so that one of their contact points touch the wire. This will give you a better idea of how the keyer is going to end up looking. Don't worry about it being wobbly - we'll use this property to model it a little in a moment. First complete the loop by soldering the other end of the GND loop to the board. If your GND loop happens to pass near other GND holes, you can insert short sections of wire to increase the rigidity of the construction.
+We'll start with a "GND loop". Cut a section of wire - about 20 or 30cm. Strip its insulation (all of it) & insert it into one of the GND holes on the board. Solder it in place - it should be firmly attached to the board. Insert the battery and take the board in your hand. Position it like you'd like it to stay in your hand and start bending the wire into a loop that goes through all the places where key switches bases are going to be placed. For some extra rigidity (long wire is fairly bendy) lead the other end of the wire back into another GND hole on the board. You can take the switches with keycaps and place them so that one of their contact points touch the wire. This will give you a better idea of how the keyer is going to end up looking. Don't worry about it being wobbly - we'll use this property to model it a little in a moment. First complete the loop by soldering the other end of the GND loop to the board. If your GND loop happens to pass near other GND holes, you can insert short sections of wire to increase the rigidity of the construction.
 
 Once GND loop is complete, take your key switches and attach them to the GND loop so that one of their contact points makes an electrical contact. You can solder them directly but it's a good idea to start with some hot glue to hold them in place. In my version I also bent the contacts on the key switches to make them smaller (DIY low profile) and to take less space.
 
@@ -86,13 +94,13 @@ One word of advice about key positioning is that I've noticed that the keys are 
 
 Once you attached all of the keys, it's time to add even more rigidity into our construction. We'll do this by connecting the remaining contact points on the switches to the GPIO holes on the board. They're marked on the board with text that says "IO##". It doesn't matter which IO port you choose, but write down which key goes to which IO port - it's something that will have to be entered in the firmware. Take a short cut of the wire, strip it at both ends. Bend it (with pliers) so that it fits in the hole and goes straight to the switch. Then solder it in place at both ends. It's important that the wires going to the IO ports don't touch the GND loop. Insulation should help with that.
 
-After this step, the keyer should be fairly rigid. Mount the keycaps and see how it feels. It's obviously a little "spiky" but we'll deal with that in the next step. Right now bend the wires to put all the key switches in their right positions.
+After this step, the keyer should be fairly rigid. Mount the keycaps and see how it feels. It's obviously a little "spiky" but you'll have to endure the pain for the moment. Right now bend the wires to put all the key switches in their right positions.
 
 At this point you can go to the "Flashing Firmware" section and check out how your keyer works! It's good to see if you didn't mess anything up so far. The hardest part is over!
 
-### Putting on the skin (day 2)
+### Sculpting with clay (day 2)
 
-Now is the time to open up the modelling clay and use it to cover our keyer. Before you begin, remove the keycaps, as they'll only get in the way. Take a small amount of clay and start shaping it in your hand. Squeeze it and fold in half. Repeat this about twenty times. Modelling clay must be mixed like that a little to prevent it from crumbling.
+Now is the time to open up the modelling clay and use it to cover our keyer. Before you begin, remove the keycaps, as they'll only get in the way. Take a small amount of clay and start shaping it in your hand. Squeeze it and fold in half. Repeat this about twenty times. Modelling clay must be mixed a little to prevent it from crumbling. You'll have to do this with every bit of clay that you're adding to the sculpture.
 
 Once you have your warm and soft piece of clay, slap it on top of the keyer - wherever you want to cover something. It's important to cover the bottom parts of the switches - that's the part that may prick your fingers. Everything else is optional. I decided to keep my development board mostly visible and only covered the wires.
 
@@ -101,7 +109,7 @@ As you're sticking pieces of clay, one after another, you may find the resulting
 1. Add clay in **layers**. Take a small ball of clay and place it between two popsicle sticks. Roll it into a flat disc with a rolling pin. Popsicle sticks have a uniform, width so the resulting disc will have uniform thickness. Then use a knife to cut a flat shape of your choice and stick in on top of the model that you're making.
 2. If you see a gap between chunks of clay - **rub them**. Keep rubbing them until the gap disappears. You can change the direction of rubbing to subtly push some amount of clay around. It can be used to even up tiny hills and valleys.
 3. The best way of evening uneven edges is to use a **knife**. Ideally a wallpaper knife. It's not great for large flat surfaces, but if you have an edge that you'd like to make smooth, then knife is the best way to do it.
-4. This is a cool one. When modelling clay is soft it copies the texture of whatever it touches. You can use a piece of fabric to make it look like a fuzzy fabric. If you take a glass you can make it glossy. Look around you and see what nice textures you have around.
+4. This is a cool one but it's going to be useful right at the end. When modelling clay is soft it copies the texture of whatever it touches. You can use a piece of fabric to make it look like a fuzzy fabric. If you take a glass you can make it glossy. Look around you and see what nice textures you have around.
 
 You can try to take the keyer in your hand at this point but be careful. The clay is very pliable and may deform under the pressure of your hand.
 
@@ -133,8 +141,8 @@ $ pio run
 $ pio run --target upload
 ```
 
-4. Open Bluetooth settings on your phone or PC. If you see a device called "𝖒𝖆𝖋.🎹", that means it's working.
-5. Go to a text editor and find `ChordKeyboard.cpp`. Change the `kButtonPin` array to the IO ports that you used for connecting the switches. Feel free to explore this file and experiment.
+4. Open Bluetooth settings on your phone or PC. If you see a device called "𝖒𝖆𝖋.🎹", that means it's working. If it doesn't skip to step 6.
+5. Go to a text editor and find `ChordKeyboard.cpp`. Change the `kButtonPin` array to the IO ports that you used for connecting the switches. You can also rename the keyer by replacing "𝖒𝖆𝖋" with your name. Bluetooth names may be truncated to 16 bytes so you don't have a lot of emojis to work with. Feel free to explore this file and experiment.
 6. Enable serial output by uncommenting the `Serial.begin` line and running the program with `pio run --target upload --target monitor`. This will let you see what the board is doing while you're fiddling with the code and pressing the keys.
 
 ### Optimizing layouts (day 3+)
