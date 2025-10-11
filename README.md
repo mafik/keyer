@@ -176,6 +176,8 @@ If you're going to use some non-english letters, then you should also look at qw
 
 Anyway, with all of the adjustments done, run the `planner.py` script. While the script running we have some time to explain what it does.
 
+https://github.com/user-attachments/assets/4c7ad9f6-67f0-450c-9985-fa53694d1321
+
 I used the word "beyond astronomical" before. And space (cosmos) is actually a good metaphor to imagine the search process. Let's say we're looking for gravity wells. The bigger the better. Ideally - the supermassive black holes in the centers of galaxies. And not just any supermassive black holes. We want to find the biggest one in this whole universe. That's the optimal layout that we're looking for. During our search we have one major limitation - we can only check this space one point at a time. The `score_layout` function from `keyer_simulator.cpp` can take any point in this space (any layout), and measure how deep is the gravity well at this point (how fast it is to type with it). It's a rather expensive process. That's why this bit is implemented in C++ and optimized quite a bit.
 
 You may have heard of fancy machine learning algorithms based on gradients - but hold your horses. We're dealing with a combinatorial problem here. We can swap a pair of keys to improve or lower the score - but it's not a continuous space. It is meaningless to move in some direction in this space. There is some smoothness here - that's true. We can imagine our optimal layout somewhere out there. The layouts that are very similar to the optimal one (one key swap away) are probably also decent. And the layouts one step further are probably also quite acceptable. But this kind of smoothness can't be used to create a "direction" that we could optimize in.
