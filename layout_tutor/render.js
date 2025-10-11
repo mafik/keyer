@@ -38,9 +38,8 @@ function render() {
   const width = window.innerWidth;
   const height = window.innerHeight;
 
-  // Clear canvas
-  ctx.fillStyle = "#1e1e1e";
-  ctx.fillRect(0, 0, width, height);
+  // Clear canvas with transparency
+  ctx.clearRect(0, 0, width, height);
 
   // Calculate scale for learning sequence and chord grid
   const charWidth = 30;
