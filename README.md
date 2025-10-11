@@ -154,9 +154,9 @@ Alright, that's it! You may wonder - how it is possible that we've finished the 
 
 ### 🌌 Optimizing layouts (day 4)
 
-Everybody has different typing patterns and what works best for me will likely not be the best one for you. This is especially important for a keyer. Do you intend to use your keyer to play games? Or chat with AI? Blast terminal commands? Write notes? Emails? A custom keyboard layout will help you be more efficient at doing the things you're doing. The default layout was optimized to minimize the text entry time for a mix of English, Polish, C++ and Python code. That's probably not exactly what you'll be using your keyer for. That's why it's worth taking a moment to do this properly - and make one just for yourself.
+Everybody has different typing patterns and what works best for me will likely not be the best one for you. This is especially important for a keyer. Do you intend to use your keyer to play games? Or chat with AI? Blast terminal commands? Write notes? Emails? A custom keyboard layout will help you be more efficient at doing the things you're doing. The default layout was optimized to minimize the text entry time for a mix of English, Polish, C++ and Python code. That's probably not exactly what you'll be using your keyer for. That's why it's worth taking a moment to do this properly - and make a custom layout just for yourself.
 
-If you want to squeeze out the maximum efficiency then you might be interested in the ability to write **complete words** by pressing a single chord. Yep, that's right - you can program a chord to enter your 20-character super secret password of mixed letters, digits and that single punctuation character and a capital letter. Or your credit card number. Or `¯\\_(ツ)_/¯`. It's your keyer - you can trust it with those things.
+If you want to squeeze out the maximum efficiency then you might be interested in the ability to write **complete words** by pressing a single chord. Yep, that's right - you can program a chord to enter `¯\\_(ツ)_/¯`. Or your credit card number. Oryour 20-character super secret password of mixed letters, digits and that single punctuation character. It's your keyer - you can trust it with those things.
 
 Multi-character chords are the secret (not so secret any more, heh) trick of stenographers. They just mash a bunch of letters, and the keyboard arranges them into a proper word.
 
@@ -186,7 +186,7 @@ Most of the points that we can randomly pick in this space will contain total ga
 
 Another approach is to focus our search near some good points. Like picking mushrooms in a forest. You find a mushroom 🍄‍🟫? That means there sholud be more nearby. So we can check the neighbourhood of good mushrooms (ekhm... I mean points) more dilligently. We start picking random points throughout the universe and then we progressively start focusing on the nice locations. The fancy term for this approach is [simulated annealing](https://en.wikipedia.org/wiki/Simulated_annealing). Doing this very slowly, mathematically speaking should let us find the optimal point. Unfortunately mathematicial proofs don't translate well into practical algorithms. This is one of those situations. The "very slowly" in mathematics translates to "forever" in practice.
 
-For practical algorithms we'll have to learn from the force of nature that defines what it even means to be practical - from the *life* itself.
+For practical algorithms we'll have to learn from the force of nature that defines what it even means to be practical - from the _life_ itself.
 
 This algorithm is the staple of optimization techniques - an [evolutionary algorithm 🧬](https://en.wikipedia.org/wiki/Evolutionary_algorithm). In this one we have to treat different points in the space that we're searching like living creatures. First we scatter a bunch of points throughout the universe randomly. Then we measure them. Then we kill half of them. Thanos style 🤌. The remaining points have virtual baby points that are a mixture of their parents plus some random mutations. In each iteration of evolution there is some death and there is some life. And some random mutations. Most of the mutations are cancer. But some of them are good. The unlucky cancer babies will die. But the lucky ones will live long enough to exchange genes. This cool trick (scientifically called meiosis, and colloqually - sex) is why we humans continue to exist and can survive a competition against bacterias that have reproductive cycle measured in hours and vastly greater populations. It's crazy to think what would happen if a germ like COVID-19 figured out sexual reproduction...
 
@@ -205,9 +205,18 @@ This is what you can see in your terminal. It's a **pheromone matrix**. It's a m
 
 On my PC it took 7004 generations (a couple of hours). In each generation 240 ants went out to search food (the best layout) and only the victorious ant was allowed to deposit the pheromone. The pheromone evaporates a little, so that eventually the quantity of pheromone starts to stabilize. It's a fairly slow process - but only because our ants are searching through mind boggingly large space. Given the complexity of the problem, I think they're doing quite well!
 
-You will find the resulting layout in best_layout.txt . I do recommend to take a look at it and see how you'd type some of common words that you might enter frequently.
+You will find the resulting layout in best_layout.txt . I do recommend to take a look at it and see how you'd type some of common words that you might enter frequently. I found some of the key combos to be quite interesting (like shifting from `.` or `;` to `Enter`).
 
 Unfortunately the ants can't optimize multi-key chords - you'll have to place those using your own intuition.
+
+Edit the chord assignments in `ChordKeyboard.cpp` and `pio run --target upload` it to the device. Now you're ready to start using it!
+
+#### Extras
+
+This section is for the people who decided to keep designing their layout rather than use it. It's better if you stay away from these ideas.
+
+- It's disabled by default but you can also look for five-finger chords. You will have to switch the `qwerty_analyzer` to assign a chord to the `Shift` key. By default `Shift` is just assumed to be on the pinky. This way the optimization can focus on the four main fingers.
+- The optimizer can also assign multiple chords to the same key. The simulator will pick the fastest one to enter as it simulates text entry. This will produce about 5% more efficient layouts. It's disabled because it's near impossible to learn such a layout.
 
 ### Building the muscle memory (days 5+)
 
