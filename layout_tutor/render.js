@@ -192,12 +192,34 @@ function renderChordGrid(ctx, width) {
 }
 
 function renderTextArea(ctx, width, height) {
-  ctx.font = "48px monospace";
-  const startY = height / 2 + 24;
+  const baseFontSize = 48;
+  const maxWidth = width - 80; // Leave margin on both sides
+
+  // Set initial font to measure text
+  ctx.font = `${baseFontSize}px monospace`;
+
+  // Measure the actual width of the text
+  const displayText = targetText.replace(/ /g, "␣");
+  const textMetrics = ctx.measureText(displayText);
+  const requiredWidth = textMetrics.width;
+
+  // Calculate scale if text is too wide
+  let scale = 1;
+  if (requiredWidth > maxWidth) {
+    scale = maxWidth / requiredWidth;
+  }
+
+  const fontSize = baseFontSize * scale;
+  ctx.font = `${fontSize}px monospace`;
+
+  // Measure again with scaled font to get accurate character width
+  const charWidth = ctx.measureText("A").width;
+
+  const startY = height / 2 + 24 * scale;
 
   // Calculate text positioning
-  const charWidth = 35;
-  const startX = width / 2 - (targetText.length * charWidth) / 2;
+  const totalWidth = targetText.length * charWidth;
+  const startX = width / 2 - totalWidth / 2;
 
   // Render each character
   for (let i = 0; i < targetText.length; i++) {
@@ -214,8 +236,16 @@ function renderTextArea(ctx, width, height) {
     } else if (i === typedText.length) {
       // Current character to type
       ctx.fillStyle = "#4ec9b0"; // Cyan highlight
-      // Draw cursor
-      ctx.fillRect(x - 2, startY - 40, 4, 55);
+      // Draw cursor (scaled proportionally)
+      const cursorHeight = 55 * scale;
+      const cursorWidth = 4 * scale;
+      const cursorOffset = 40 * scale;
+      ctx.fillRect(
+        x - cursorWidth / 2,
+        startY - cursorOffset,
+        cursorWidth,
+        cursorHeight,
+      );
     } else {
       // Not yet typed
       ctx.fillStyle = "#d4d4d4"; // Default grey
