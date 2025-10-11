@@ -67,6 +67,67 @@ function setupEventListeners() {
 }
 
 function handleKeyPress(key) {
+  // Handle Backspace - delete last character
+  if (key === "Backspace") {
+    if (typedText.length > 0) {
+      typedText = typedText.slice(0, -1);
+      // Remove last entry from stats history
+      if (statsHistory.length > 0) {
+        statsHistory.pop();
+      }
+      render();
+    }
+    return;
+  }
+
+  // Handle Escape - reset current exercise
+  if (key === "Escape") {
+    typedText = "";
+    lastCharTime = null;
+    render();
+    return;
+  }
+
+  // Ignore other special keys (modifier keys, navigation keys, etc.)
+  const specialKeys = [
+    "Shift",
+    "Control",
+    "Alt",
+    "Meta",
+    "Tab",
+    "Enter",
+    "Delete",
+    "ArrowLeft",
+    "ArrowRight",
+    "ArrowUp",
+    "ArrowDown",
+    "CapsLock",
+    "NumLock",
+    "ScrollLock",
+    "Pause",
+    "Insert",
+    "Home",
+    "End",
+    "PageUp",
+    "PageDown",
+    "F1",
+    "F2",
+    "F3",
+    "F4",
+    "F5",
+    "F6",
+    "F7",
+    "F8",
+    "F9",
+    "F10",
+    "F11",
+    "F12",
+  ];
+
+  if (specialKeys.includes(key) || key.length > 1) {
+    return; // Ignore multi-character key names
+  }
+
   const now = Date.now();
 
   const expectedChar = targetText[typedText.length];
