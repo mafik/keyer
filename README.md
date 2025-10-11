@@ -36,6 +36,7 @@ One keyer manufacturer made a nice video showing typing in action: [youtube.com/
 - **Easy to build**: did you ever play with Play-Doh? This keyer was built with modelling clay (baked in the oven for 30 minutes). No 3D printing. No custom PCBs. You can make it with parts from amazon, a hot glue gun and a soldering iron.
 - **Perfect fit**: you build it yourself, literally molding it to the shape of your hand. You can't get more ergonomic than that.
 - **Cheap to build**: it's less than 50 USD to make one yourself. Mechanical keyboards are a cheap hobby now. Who would have thought!
+- _(New!)_ **Typing tutor**: relieve the [90s](https://www.youtube.com/watch?v=UzRjtvMQds4&t=63s) with the bundled [chording tutor](https://mafik.github.io/keyer/)
 
 ## 🐾 Links (a.k.a. 💫 Awesome Keyers 🎹)
 
