@@ -84,7 +84,7 @@ function render() {
 }
 
 function renderLearningSequence(ctx, width) {
-  ctx.font = "24px monospace";
+  ctx.font = "24px 'Modern Typewriter', monospace";
   const charWidth = 30;
   const startX = width / 2 - (learning_sequence.length * charWidth) / 2 + 40;
   const y = 50;
@@ -138,7 +138,7 @@ function renderChordGrid(ctx, width) {
 
     // Draw finger label on the left
     ctx.fillStyle = "#858585";
-    ctx.font = "12px monospace";
+    ctx.font = "12px 'Modern Typewriter', monospace";
     ctx.textAlign = "right";
     ctx.fillText(fingerNames[finger], startX - 25, y + 4);
   }
@@ -182,7 +182,7 @@ function renderChordGrid(ctx, width) {
 
         // Draw position number inside
         ctx.fillStyle = "#1e1e1e";
-        ctx.font = "bold 12px monospace";
+        ctx.font = "bold 12px 'Modern Typewriter', monospace";
         ctx.fillText(position, x, y + 4);
       }
     }
@@ -193,10 +193,10 @@ function renderChordGrid(ctx, width) {
 
 function renderTextArea(ctx, width, height) {
   const baseFontSize = 48;
-  const maxWidth = width - 80; // Leave margin on both sides
+  const maxWidth = width - 120; // Leave margin on both sides
 
   // Set initial font to measure text
-  ctx.font = `${baseFontSize}px monospace`;
+  ctx.font = `${baseFontSize}px 'Modern Typewriter', monospace`;
 
   // Measure the actual width of the text
   const displayText = targetText.replace(/ /g, "␣");
@@ -210,7 +210,7 @@ function renderTextArea(ctx, width, height) {
   }
 
   const fontSize = baseFontSize * scale;
-  ctx.font = `${fontSize}px monospace`;
+  ctx.font = `${fontSize}px 'Modern Typewriter', monospace`;
 
   // Measure again with scaled font to get accurate character width
   const charWidth = ctx.measureText("A").width;
@@ -291,13 +291,13 @@ function renderWPMBar(ctx, height, wpm) {
 
   // Draw WPM text at bottom left
   ctx.fillStyle = "#4ec9b0";
-  ctx.font = "20px monospace";
+  ctx.font = "20px 'Modern Typewriter', monospace";
   ctx.textAlign = "left";
   ctx.fillText(wpm.toString(), barX + barWidth + 10, barBottomY - 30);
 
   // Draw "WPM" label
   ctx.fillStyle = "#858585";
-  ctx.font = "12px monospace";
+  ctx.font = "12px 'Modern Typewriter', monospace";
   ctx.fillText("WPM", barX + barWidth + 10, barBottomY - 15);
 
   ctx.textAlign = "left";
@@ -335,13 +335,13 @@ function renderAccuracyBar(ctx, width, height, accuracy) {
 
   // Draw accuracy text at bottom right
   ctx.fillStyle = "#4ec9b0";
-  ctx.font = "20px monospace";
+  ctx.font = "20px 'Modern Typewriter', monospace";
   ctx.textAlign = "right";
   ctx.fillText(accuracy.toString() + "%", barX - 10, barBottomY - 30);
 
   // Draw "ACC" label
   ctx.fillStyle = "#858585";
-  ctx.font = "12px monospace";
+  ctx.font = "12px 'Modern Typewriter', monospace";
   ctx.fillText("ACC", barX - 10, barBottomY - 15);
 
   ctx.textAlign = "left";
@@ -349,10 +349,10 @@ function renderAccuracyBar(ctx, width, height, accuracy) {
 
 function renderStat(ctx, x, y, label, value) {
   ctx.fillStyle = "#858585";
-  ctx.font = "14px monospace";
+  ctx.font = "14px 'Modern Typewriter', monospace";
   ctx.fillText(label, x, y - 20);
 
   ctx.fillStyle = "#4ec9b0";
-  ctx.font = "24px monospace";
+  ctx.font = "24px 'Modern Typewriter', monospace";
   ctx.fillText(value, x, y);
 }
