@@ -162,6 +162,9 @@ function handleKeyPress(key) {
 
   lastCharTime = now;
 
+  // Start animation for WPM bar decay
+  startAnimation();
+
   // Check if exercise is complete
   if (typedText.length >= targetText.length) {
     // Check if we should advance based on performance
@@ -184,6 +187,7 @@ function handleKeyPress(key) {
         if (oldIndex >= newIndex) {
           oldIndex = -1; // special case for training key repeat
           newIndex++;
+          practiceAlternations = false;
         }
         if (newIndex == learning_sequence.length - 1) {
           newIndex = 0;
@@ -236,7 +240,15 @@ function getCurrentWPM() {
   }
 
   // Sum up total time from stats history
-  const totalTime = statsHistory.reduce((sum, stat) => sum + stat.time, 0);
+  let totalTime = statsHistory.reduce((sum, stat) => sum + stat.time, 0);
+
+  // Add the time since the last character (assuming user will press key now)
+  if (lastCharTime !== null) {
+    const timeSinceLastChar = (Date.now() - lastCharTime) / 1000;
+    // Clamp to maximum of 5 seconds (same as when recording)
+    const clampedTime = Math.min(timeSinceLastChar, 5);
+    totalTime += clampedTime;
+  }
 
   if (totalTime === 0) {
     return 0;
@@ -244,7 +256,7 @@ function getCurrentWPM() {
 
   const wordsTyped = statsHistory.length / 5;
   const wpm = (wordsTyped / totalTime) * 60;
-  return Math.round(wpm);
+  return wpm;
 }
 
 function getCurrentAccuracy() {

@@ -5,6 +5,10 @@
 let canvas;
 let ctx;
 
+// Animation state
+let animationFrameId = null;
+let isAnimating = false;
+
 function initRender() {
   canvas = document.getElementById("canvas");
   ctx = canvas.getContext("2d");
@@ -20,6 +24,37 @@ function initRender() {
     resizeCanvas();
     render();
   });
+}
+
+function startAnimation() {
+  if (isAnimating) return;
+  isAnimating = true;
+  animateFrame();
+}
+
+function stopAnimation() {
+  if (animationFrameId !== null) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+  }
+  isAnimating = false;
+}
+
+function animateFrame() {
+  if (!isAnimating) return;
+
+  // Check if we should stop animation (more than 5 seconds since last char)
+  if (lastCharTime !== null) {
+    const timeSinceLastChar = (Date.now() - lastCharTime) / 1000;
+    if (timeSinceLastChar >= 5) {
+      stopAnimation();
+      render(); // Final render
+      return;
+    }
+  }
+
+  render();
+  animationFrameId = requestAnimationFrame(animateFrame);
 }
 
 function resizeCanvas() {
@@ -298,7 +333,11 @@ function renderWPMBar(ctx, height, wpm) {
   ctx.fillStyle = "#4ec9b0";
   ctx.font = "20px 'Modern Typewriter', monospace";
   ctx.textAlign = "left";
-  ctx.fillText(wpm.toString(), barX + barWidth + 10, barBottomY - 30);
+  ctx.fillText(
+    Math.round(wpm).toString(),
+    barX + barWidth + 10,
+    barBottomY - 30,
+  );
 
   // Draw "WPM" label
   ctx.fillStyle = "#858585";
