@@ -135,7 +135,9 @@ function handleKeyPress(key) {
 
   if (correct) {
     typedText += key;
-    playGood();
+    // Pass current WPM to playGood for pitch shifting
+    const currentWPM = getCurrentWPM();
+    playGood(currentWPM);
   } else {
     // Wrong key - still advance but mark as incorrect
     typedText += key;

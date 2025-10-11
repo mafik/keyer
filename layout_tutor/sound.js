@@ -1,12 +1,10 @@
 // Sound effects module
 
 const goodSounds = [
-  "sfx_good/453204__alienxxx__ao_subtractor_kickdrum_2_2.wav"
+  "sfx_good/453204__alienxxx__ao_subtractor_kickdrum_2_2.wav",
 ];
 
-const badSounds = [
-  "sfx_bad/454645__alienxxx__ao_subtractor_snare_2_4.wav"
-];
+const badSounds = ["sfx_bad/454645__alienxxx__ao_subtractor_snare_2_4.wav"];
 
 const levelUpSounds = [
   "sfx_level_up/275012__alienxxx__squadron_leader_form_up.wav",
@@ -45,8 +43,19 @@ const levelUpSounds = [
   "sfx_level_up/274321__alienxxx__afirmative.wav",
   "sfx_level_up/274320__alienxxx__breaking_formation.wav",
   "sfx_level_up/274319__alienxxx__breaking_to_attack.wav",
-  "sfx_level_up/274318__alienxxx__copy_that_forming_up.wav"
+  "sfx_level_up/274318__alienxxx__copy_that_forming_up.wav",
 ];
+
+// Audio context for pitch shifting (shared across all sounds)
+let audioContext = null;
+
+// Initialize audio context (lazily, on first use)
+function getAudioContext() {
+  if (!audioContext) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioContext;
+}
 
 // Helper function to play a random sound from an array
 function playRandomSound(soundArray) {
@@ -56,14 +65,61 @@ function playRandomSound(soundArray) {
   const soundPath = soundArray[randomIndex];
 
   const audio = new Audio(soundPath);
-  audio.play().catch(err => {
+  audio.play().catch((err) => {
     console.warn("Failed to play sound:", err);
   });
 }
 
-// Play a random "good" sound (correct key press)
-function playGood() {
-  playRandomSound(goodSounds);
+// Helper function to play a sound with pitch shifting using Web Audio API
+function playPitchedSound(soundPath, pitchShift) {
+  const ctx = getAudioContext();
+
+  fetch(soundPath)
+    .then((response) => response.arrayBuffer())
+    .then((arrayBuffer) => ctx.decodeAudioData(arrayBuffer))
+    .then((audioBuffer) => {
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffer;
+
+      // Apply pitch shift by changing playback rate
+      // pitchShift is in semitones: rate = 2^(semitones/12)
+      source.playbackRate.value = Math.pow(2, pitchShift / 12);
+
+      source.connect(ctx.destination);
+      source.start(0);
+    })
+    .catch((err) => {
+      console.warn("Failed to play pitched sound:", err);
+    });
+}
+
+// Play a random "good" sound (correct key press) with pitch based on WPM
+function playGood(currentWPM) {
+  if (goodSounds.length === 0) return;
+
+  const randomIndex = Math.floor(Math.random() * goodSounds.length);
+  const soundPath = goodSounds[randomIndex];
+
+  // Calculate pitch shift based on WPM
+  // If currentWPM is not provided, use default (no shift)
+  if (currentWPM === undefined) {
+    playRandomSound(goodSounds);
+    return;
+  }
+
+  // Target WPM is 30 (from state.js)
+  const targetWPM = 30;
+  const wpmDifference = currentWPM - targetWPM;
+
+  // Map WPM difference to semitones
+  // Each 10 WPM difference = 2 semitones
+  // Above target = higher pitch, below target = lower pitch
+  const pitchShift = (wpmDifference / 10) * 2;
+
+  // Clamp pitch shift to reasonable range (-12 to +12 semitones = 1 octave each way)
+  const clampedPitchShift = Math.max(-12, Math.min(12, pitchShift));
+
+  playPitchedSound(soundPath, clampedPitchShift);
 }
 
 // Play a random "bad" sound (incorrect key press)
