@@ -10,6 +10,11 @@ function initRender() {
   ctx = canvas.getContext("2d");
   resizeCanvas();
 
+  // Wait for the Modern Typewriter font to load before rendering
+  document.fonts.ready.then(() => {
+    render();
+  });
+
   // Handle window resize
   window.addEventListener("resize", () => {
     resizeCanvas();
