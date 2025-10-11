@@ -312,9 +312,10 @@ function renderStats(ctx, width, height) {
   ctx.textAlign = "left";
 }
 
+const barWidth = 6;
+
 function renderWPMBar(ctx, height, wpm) {
   const barX = 0; // Touch left edge
-  const barWidth = 30;
   const barBottomY = height; // Touch bottom edge
   const barHeight = height;
 
@@ -358,7 +359,6 @@ function renderWPMBar(ctx, height, wpm) {
 }
 
 function renderAccuracyBar(ctx, width, height, accuracy) {
-  const barWidth = 30;
   const barX = width - barWidth; // Touch right edge
   const barBottomY = height; // Touch bottom edge
   const barHeight = height;
