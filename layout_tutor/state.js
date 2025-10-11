@@ -8,6 +8,9 @@ const targetWPM = 30;
 const targetAccuracy = 0.9;
 const statsHistoryWindowSize = 30; // Number of recent characters for WPM calculation
 
+// Debug logs (ephemeral - for mobile debugging)
+let debugLogs = [];
+
 // Save state to localStorage
 function saveState() {
   const state = {
@@ -27,7 +30,7 @@ function loadState() {
       oldIndex = state.oldIndex || -1;
       // phase and recentPerformance are not loaded - they reset on page reload
     } catch (e) {
-      console.error("Failed to load progress:", e);
+      addLog("Failed to load progress: " + e);
     }
   }
 }
@@ -37,4 +40,12 @@ function resetState() {
   newIndex = 0;
   oldIndex = -1;
   saveState();
+}
+
+// Add a debug log message
+function addLog(message) {
+  debugLogs.unshift(message); // Add to the beginning (top)
+  if (debugLogs.length > 10) {
+    debugLogs = debugLogs.slice(0, 10); // Keep only last 10 messages
+  }
 }

@@ -30,29 +30,7 @@ function init() {
 }
 
 function setupEventListeners() {
-  const hiddenInput = document.getElementById("hiddenInput");
-
-  // Focus hidden input on canvas click to trigger mobile keyboard
-  document.getElementById("canvas").addEventListener("click", () => {
-    hiddenInput.focus();
-  });
-
-  // Keep input focused and empty for continuous typing
-  hiddenInput.addEventListener("input", (e) => {
-    const key = e.data;
-    if (key) {
-      handleKeyPress(key);
-    }
-    // Clear the input immediately to prepare for next character
-    hiddenInput.value = "";
-  });
-
-  // Prevent input from losing focus on mobile
-  hiddenInput.addEventListener("blur", () => {
-    setTimeout(() => hiddenInput.focus(), 0);
-  });
-
-  // Handle keyboard input (for desktop)
+  // Handle keyboard input
   document.addEventListener("keydown", (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey) {
       return; // Allow browser shortcuts
@@ -61,13 +39,10 @@ function setupEventListeners() {
     e.preventDefault();
     handleKeyPress(e.key);
   });
-
-  // Auto-focus on page load
-  hiddenInput.focus();
 }
 
 function handleKeyPress(key) {
-  console.log("handleKeyPress", key);
+  addLog("handleKeyPress: " + key);
   // Handle Backspace - delete last character
   if (key === "Backspace") {
     if (typedText.length > 0) {

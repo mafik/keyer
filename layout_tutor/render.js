@@ -121,6 +121,10 @@ function render() {
 
   // Render stats
   renderStats(ctx, width, height);
+
+  // Render debug logs
+  // disabled
+  // renderDebugLogs(ctx, width, height);
 }
 
 function renderLearningSequence(ctx, width) {
@@ -399,4 +403,39 @@ function renderStat(ctx, x, y, label, value) {
   ctx.fillStyle = "#4ec9b0";
   ctx.font = "24px 'Modern Typewriter', monospace";
   ctx.fillText(value, x, y);
+}
+
+function renderDebugLogs(ctx, width, height) {
+  if (typeof debugLogs === "undefined" || debugLogs.length === 0) return;
+
+  const fontSize = 14;
+  const lineHeight = 18;
+  const padding = 10;
+  const rightMargin = 10;
+  const topMargin = 10;
+
+  ctx.font = `${fontSize}px 'Modern Typewriter', monospace`;
+  ctx.textAlign = "right";
+
+  // Render each log message from top to bottom
+  for (let i = 0; i < debugLogs.length; i++) {
+    const y = topMargin + (i + 1) * lineHeight;
+    const x = width - rightMargin;
+
+    // Draw semi-transparent background for readability
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    const textWidth = ctx.measureText(debugLogs[i]).width;
+    ctx.fillRect(
+      x - textWidth - padding,
+      y - fontSize,
+      textWidth + padding * 2,
+      lineHeight,
+    );
+
+    // Draw log text
+    ctx.fillStyle = "#4ec9b0";
+    ctx.fillText(debugLogs[i], x, y);
+  }
+
+  ctx.textAlign = "left";
 }
