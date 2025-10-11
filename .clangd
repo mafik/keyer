@@ -8,6 +8,7 @@ CompileFlags:
     - "-I/home/maf/.platformio/packages/toolchain-xtensa-esp32s3/xtensa-esp32s3-elf/sys-include"
     - "--target=xtensa-esp32s3-elf"
     - "-Wno-c99-designator"
+    - "-std=gnu++2a"
   Remove:
     - "-fno-tree-switch-conversion"
     - "-fstrict-volatile-bitfields"

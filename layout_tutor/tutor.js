@@ -67,6 +67,7 @@ function setupEventListeners() {
 }
 
 function handleKeyPress(key) {
+  console.log("handleKeyPress", key);
   // Handle Backspace - delete last character
   if (key === "Backspace") {
     if (typedText.length > 0) {
