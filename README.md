@@ -36,7 +36,7 @@ One keyer manufacturer made a nice video showing typing in action: [youtube.com/
 - **Easy to build**: did you ever play with Play-Doh? This keyer was built with modelling clay (baked in the oven for 30 minutes). No 3D printing. No custom PCBs. You can make it with parts from amazon, a hot glue gun and a soldering iron.
 - **Perfect fit**: you build it yourself, literally molding it to the shape of your hand. You can't get more ergonomic than that.
 - **Cheap to build**: it's less than 50 USD to make one yourself. Mechanical keyboards are a cheap hobby now. Who would have thought!
-- _(New!)_ **Chording tutor**: learn to type in Maverick-themed [chording tutor](https://mafik.github.io/keyer/)
+- _(New!)_ **Chording tutor**: learn to type in our Maverick-themed [chording tutor](https://mafik.github.io/keyer/)
 
 ## 🐾 Links (a.k.a. 💫 Awesome Keyers 🎹)
 
@@ -55,6 +55,12 @@ One keyer manufacturer made a nice video showing typing in action: [youtube.com/
 - [Twiddler](https://www.mytwiddler.com/) - 19 tiny keys + touchpad for $229
 - [Decatext](https://decatxt.com/) - 10 large keys + typing guide right on the device for $175 (its author also shared the promo code "Neural" for $15 off!)
 - [Typeware](https://typeware.tech/) - ultra lightweight & probably the best all-around design for $273 (pre-orders only 😔)
+
+**Memes**:
+
+- [Mobile Text Entry Device](https://patents.google.com/patent/US20030179178A1/en) - a 💩-inspired design
+- [I love the powerglove.](https://www.youtube.com/watch?app=desktop&v=KZErvASwdlU)
+- [Johnny Mnemonic](https://www.youtube.com/watch?v=UzRjtvMQds4&t=63s) - it's even funnier when you realize it's not a parody
 
 ## Making your own keyer
 
