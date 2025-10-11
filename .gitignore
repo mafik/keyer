@@ -1,3 +1,4 @@
 .pio/*
 .cache/*
 layout_generator/corpus/*
+__pycache__
