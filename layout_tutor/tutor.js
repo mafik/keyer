@@ -135,9 +135,11 @@ function handleKeyPress(key) {
 
   if (correct) {
     typedText += key;
+    playGood();
   } else {
     // Wrong key - still advance but mark as incorrect
     typedText += key;
+    playBad();
   }
 
   // Calculate time since last character (in seconds)
@@ -165,6 +167,7 @@ function handleKeyPress(key) {
       const accuracy = getCurrentAccuracy() / 100; // Convert to decimal
 
       if (wpm >= targetWPM && accuracy >= targetAccuracy) {
+        playLevelUp();
         if (practiceAlternations) {
           // End of alterations practice
           // Switch to dictionary-based practice
