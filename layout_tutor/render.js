@@ -327,6 +327,12 @@ function renderWPMBar(ctx, height, wpm) {
   ctx.fillStyle = "#858585";
   ctx.fillRect(barX, targetY - 1, barWidth + 10, 2);
 
+  // Draw target WPM number next to the tick
+  ctx.fillStyle = "#858585";
+  ctx.font = "16px 'Modern Typewriter', monospace";
+  ctx.textAlign = "left";
+  ctx.fillText(targetWPM.toString(), barX + barWidth + 10, targetY + 5);
+
   // Draw current WPM bar
   const currentHeight = Math.min((wpm / maxWPM) * barHeight, barHeight);
   const currentY = barBottomY - currentHeight;

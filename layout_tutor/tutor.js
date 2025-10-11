@@ -165,9 +165,13 @@ function handleKeyPress(key) {
           practiceAlternations = false;
         }
         if (newIndex == learning_sequence.length - 1) {
+          // Completed entire layout - increment targetWPM and reset
           newIndex = 0;
           oldIndex = 0;
-          alert("Congratulations! You completed the entire layout!");
+          targetWPM += 5;
+          alert(
+            `Congratulations! You completed the entire layout! Target WPM increased to ${targetWPM}.`,
+          );
         }
         saveState();
         // Clear stats history after advancing
