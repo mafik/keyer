@@ -16,6 +16,24 @@
 // is printing to the serial port, it causes the device to become laggy (weird).
 constexpr bool kDebug = false;
 
+// Set this to something like 350 to enable chord autostart when a chord is held
+// down for this duration. Chords started this way cause the keys to be pressed
+// and they will be released only when the chord is also released. This allows
+// chords to function more like keyboard keys.
+//
+// This is disabled by default because it makes learning very hard. Re-enable
+// this once your WPM is above 20.
+constexpr unsigned long kChordAutostartMillis = 350 * 1000 * 1000;
+
+// The two arpeggio keys must be spread apart by at least this many
+// milliseconds.
+constexpr unsigned long kArpeggioMinSpacingMillis = 80;
+
+// Arpeggios must be released quickly after the last button is pressed. This
+// constant conrols how long the last button can be held down for an action to
+// be registered as an arpeggio.
+constexpr unsigned long kArpeggioMaxHoldMillis = 240;
+
 // Character sent by the keyboard to the computer
 using IBM_Key = uint8_t;
 
@@ -116,10 +134,6 @@ bool buttons_down[NUM_BUTTONS];
 Action *active_button_actions[NUM_BUTTONS];
 Action *chord_action;
 esp_timer_handle_t chord_autostart_timer;
-
-constexpr unsigned long ARPEGGIO_MIN_DELAY_MS = 80;
-constexpr unsigned long ARPEGGIO_MAX_DOWN_MS = 240;
-constexpr unsigned long CHORD_AUTOSTART_MILLIS = 350;
 
 enum ArpeggioState {
   STATE_READY,
@@ -362,7 +376,7 @@ void OnButtonDown(Button i) {
   } else if (arpeggio_state == STATE_BUTTON1_DOWN) {
     DebugPrintf("Arpeggio key 1 down millis: %lu\n",
                 now - arpeggio_start_millis);
-    if (now - arpeggio_start_millis >= ARPEGGIO_MIN_DELAY_MS) {
+    if (now - arpeggio_start_millis >= kArpeggioMinSpacingMillis) {
       arpeggio_button2 = i;
       arpeggio_start_millis = now;
       arpeggio_state = STATE_BUTTON2_DOWN;
@@ -391,7 +405,7 @@ void OnButtonDown(Button i) {
     if (esp_timer_is_active(chord_autostart_timer)) {
       esp_timer_stop(chord_autostart_timer);
     }
-    esp_timer_start_once(chord_autostart_timer, CHORD_AUTOSTART_MILLIS * 1000);
+    esp_timer_start_once(chord_autostart_timer, kChordAutostartMillis * 1000);
   }
 }
 
@@ -400,7 +414,7 @@ void OnButtonUp(Button i) {
   if (arpeggio_state == STATE_BUTTON2_DOWN) {
     DebugPrintf("Arpeggio button 2 down millis: %lu\n",
                 now - arpeggio_start_millis);
-    if (now - arpeggio_start_millis <= ARPEGGIO_MAX_DOWN_MS) {
+    if (now - arpeggio_start_millis <= kArpeggioMaxHoldMillis) {
       auto action = arpeggios[arpeggio_button1][arpeggio_button2];
       if (action) {
         DebugPrintf("Arpeggio action\n");
