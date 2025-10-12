@@ -47,6 +47,7 @@ Typing video [youtube.com/watch?v=Ijwo7SQQ73Q](https://www.youtube.com/watch?v=I
 **3d-printed keyers**:
 
 - [Keyyyyyyyys!](https://www.stavros.io/posts/keyyyyyyyys/) - Can you get scrappier than that?
+- [Ignacio's keyboard](https://medium.com/@tartavull/thor-your-next-keyboard-20b9ce7dd2b1)
 
 **Commercial products**:
 
