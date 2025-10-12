@@ -17,8 +17,6 @@ Firmware & goodies for making a [Keyer](https://en.wikipedia.org/wiki/Keyer) (on
   </tr>
 </table>
 
-One keyer manufacturer made a nice video showing typing in action: [youtube.com/watch?v=Ijwo7SQQ73Q](https://www.youtube.com/watch?v=Ijwo7SQQ73Q).
-
 **Features**:
 
 - **Minimal finger movement**: it's like typing with all the keys on your home row all the time
@@ -28,7 +26,7 @@ One keyer manufacturer made a nice video showing typing in action: [youtube.com/
 - **Arpeggios**: an additional 2 &times; 78 arpeggios - rolling motion over two keys that can be executed in two directions and can be used for even more input options.
 - **Multiple layers**: if the 586 shortcuts available on the base layer are somehow not enough for you
 - **Rolling chords**: when two subsequent chords you're entering share some finger positions you can only move the finger that changes position. When combined with optimized layouts (see the next point) typing is like walking through the keys one finger at a time.
-- **Optimized layout**: a bundled layout optimizer will perform a combinatorial search over all possible layouts to find the optimal one for typing the texts that you give it (or for your custom finger press / finger movement cost function)
+- **Optimized layout**: a bundled layout optimizer will perform a combinatorial search over all possible layouts to find the optimal one for typing the texts that you give it (or for your custom finger press / finger movement cost function). Then learn to type with it in the [keyer flight school](https://mafik.github.io/keyer/).
 - **Ergonomic layout 🖖**: did you know your fingers share the neuro-motor pathways and can't always move independently? The layout generator will avoid finger combinations that are hard to press.
 - **Low-latency**: the firmware uses hardware interrupts to be more responsive than polling-based keyboards and it also does debouncing in software to be more responsive capacitor-based debouncers.
 - **Power for months**: a massive 18650 battery + underclocked CPU + firmware able to sleep without losing the Bluetooth connection + hardware power switch on the board mean that you will charge it about as often as a Casio watch.
@@ -36,7 +34,8 @@ One keyer manufacturer made a nice video showing typing in action: [youtube.com/
 - **Easy to build**: did you ever play with Play-Doh? This keyer was built with modelling clay (baked in the oven for 30 minutes). No 3D printing. No custom PCBs. You can make it with parts from amazon, a hot glue gun and a soldering iron.
 - **Perfect fit**: you build it yourself, literally molding it to the shape of your hand. You can't get more ergonomic than that.
 - **Cheap to build**: it's less than 50 USD to make one yourself. Mechanical keyboards are a cheap hobby now. Who would have thought!
-- _(New!)_ **Chording tutor**: learn to type in our Maverick-themed [chording tutor](https://mafik.github.io/keyer/)
+
+Typing video [youtube.com/watch?v=Ijwo7SQQ73Q](https://www.youtube.com/watch?v=Ijwo7SQQ73Q) (from Typeware).
 
 ## 🐾 Links (a.k.a. 💫 Awesome Keyers 🎹)
 
@@ -47,7 +46,6 @@ One keyer manufacturer made a nice video showing typing in action: [youtube.com/
 
 **3d-printed keyers**:
 
-- [Typeware](https://www.youtube.com/watch?v=Ijwo7SQQ73Q) - This is what you can make if you have an access to a 3d printer and unlimited time to design
 - [Keyyyyyyyys!](https://www.stavros.io/posts/keyyyyyyyys/) - Can you get scrappier than that?
 
 **Commercial products**:
@@ -181,7 +179,7 @@ As you're starting out, you may also tweak `layouts_per_generation` (currently 2
 
 If you're going to use some non-english letters, then you should also look at qwerty_analysis.py - it's a file that converts the characters from your corpus into sequences of qwerty-equivalent key presses. Depending on your language you may have to implement this mapping yourself.
 
-Anyway, with all of the adjustments done, run the `planner.py` script. While the script running we have some time to explain what it does.
+Anyway, with all of the adjustments done, run the `planner.py` script. While the script is running we have some time to explain what it does.
 
 https://github.com/user-attachments/assets/4c7ad9f6-67f0-450c-9985-fa53694d1321
 
