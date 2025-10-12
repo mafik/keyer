@@ -1,0 +1,6 @@
+CompileFlags:
+  Add:
+    - "-I/usr/include"
+    - "-I/usr/include/python3.13"
+    - "-std=gnu++20"
+  Remove:
