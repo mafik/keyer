@@ -2,3 +2,6 @@
 .cache/*
 layout_generator/corpus/*
 __pycache__
+layout_generator/build/
+*.so
+keyer_simulator_test
