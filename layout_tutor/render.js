@@ -13,6 +13,10 @@ let currentZOffset = 0; // Current animated Z offset
 let zVelocity = 0; // Z velocity for smooth animation
 let lastAnimationTime = null;
 
+// Tachometer animation state
+let tachometerLevel = 0; // Current animated tachometer level (starts at 0)
+let tachometerVelocity = 0; // Velocity for smooth animation
+
 function initRender() {
   canvas = document.getElementById("canvas");
   ctx = canvas.getContext("2d");
@@ -89,8 +93,23 @@ function render() {
 
   ctx.restore();
 
+  renderTachometer(ctx, scale);
+
   // Render main text area
   renderTextArea(ctx, width, height);
+
+  // Animate tachometer using SineApproach
+  const targetLevel = currentLevel();
+  const tachometerPeriod = 3.0; // 3 second animation period
+  const delta_t = 1 / 60; // Fixed 60 FPS timestep
+
+  [tachometerLevel, tachometerVelocity] = SineApproach(
+    tachometerLevel,
+    tachometerVelocity,
+    tachometerPeriod,
+    targetLevel,
+    delta_t,
+  );
 
   // Render fingerplan
   renderFingerplan(ctx, width, height);
@@ -105,9 +124,12 @@ function render() {
   // Decide whether to continue animation
   // Animation continues if:
   // 1. Less than 5 seconds since last char, OR
-  // 2. Z velocity is above threshold (animation still in progress)
+  // 2. Z velocity is above threshold (animation still in progress), OR
+  // 3. Tachometer velocity is above threshold (tachometer animating)
   const velocityThreshold = 0.01;
-  let shouldContinueAnimation = Math.abs(zVelocity) >= velocityThreshold;
+  let shouldContinueAnimation =
+    Math.abs(zVelocity) >= velocityThreshold ||
+    Math.abs(tachometerVelocity) >= velocityThreshold;
 
   if (lastCharTime !== null) {
     const timeSinceLastChar = (Date.now() - lastCharTime) / 1000;
@@ -159,6 +181,50 @@ function renderLearningSequence(ctx, width) {
   }
 
   ctx.textAlign = "left";
+}
+
+// Render level label and tachometer in upper left corner
+function renderTachometer(ctx, scale) {
+  ctx.save();
+  ctx.scale(scale, scale);
+  let x = 7;
+  const y = 25; // Top margin
+  ctx.fillStyle = "#5D6532";
+  ctx.beginPath();
+  ctx.roundRect(-10, -10, 70, 80, 10);
+  ctx.filter = "drop-shadow(0px 0px 8px rgba(0, 0, 0, 0.5))";
+  ctx.fill();
+  ctx.filter = "none";
+  const barrelWidth = 17; // Width of each digit barrel
+  const barrelHeight = 25; // Height of each barrel
+  const barrelSpacing = -1; // Space between barrels
+  ctx.fillStyle = "#d4d4d4";
+  ctx.font = "15px 'Bunker Stencil', monospace";
+  ctx.textAlign = "left";
+  ctx.fillText("LEVEL", x, y - 5);
+  ctx.font = "10px 'Bunker Stencil', monospace";
+  ctx.fillText("max " + maxLevel(), x, y + barrelHeight + 11);
+
+  // Calculate rotation for each barrel
+  // Ones barrel: wraps at 10, includes fractional part
+  const onesRotation = tachometerLevel % 10;
+  // Tens barrel: based on floor of level / 10, plus fractional part from ones crossing 10
+  let tensRotation = Math.floor(tachometerLevel / 10);
+  if (onesRotation > 9) {
+    tensRotation += onesRotation - 9;
+  }
+  let hundredsRotation = Math.floor(tachometerLevel / 100);
+  if (tensRotation > 9) {
+    hundredsRotation += tensRotation - 9;
+  }
+  x -= 2;
+
+  drawBarrel(ctx, x, y, barrelWidth, barrelHeight, hundredsRotation);
+  x += barrelWidth + barrelSpacing;
+  drawBarrel(ctx, x, y, barrelWidth, barrelHeight, tensRotation);
+  x += barrelWidth + barrelSpacing;
+  drawBarrel(ctx, x, y, barrelWidth, barrelHeight, onesRotation);
+  ctx.restore();
 }
 
 function renderChordGrid(ctx, width) {
@@ -344,6 +410,52 @@ function SineApproach(value, velocity, period, target, delta_t) {
   return [a * (1 - Math.sin(x)) + target, -a * P1 * Math.cos(x)];
 }
 
+function drawBarrel(ctx, x, y, width, height, rotation) {
+  rotation = Math.max(rotation, 0);
+  // Save context
+  ctx.save();
+
+  // Create clipping region for the barrel
+  ctx.beginPath();
+  ctx.rect(x, y, width, height);
+  ctx.clip();
+
+  // Draw barrel background with vertical gradient to show curvature
+  const gradient = ctx.createLinearGradient(x, y, x, y + height);
+  gradient.addColorStop(0, "#1a1a1a");
+  gradient.addColorStop(0.5, "#2a2a2a");
+  gradient.addColorStop(1, "#1a1a1a");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(x, y, width, height);
+
+  // Each digit takes up the full height of the window
+  const digitHeight = height;
+
+  // Set up text drawing
+  ctx.font = width + "px 'Modern Typewriter', monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#ffffff";
+
+  // Draw all 10 digits in a continuous column
+  // rotation represents the full position (e.g., 0, 0.5, 1, 1.5, ..., 9, 9.5, 10, ...)
+  // We draw extra digits above and below to handle wrapping smoothly
+  for (let i = -1; i <= 11; i++) {
+    let digit = i % 10;
+    // Position each digit relative to rotation
+    const digitY = y + height / 2 - (i - rotation) * digitHeight;
+
+    ctx.fillText(digit.toString(), x + width / 2, digitY);
+  }
+
+  // Draw barrel border
+  ctx.strokeStyle = "#101010";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, width, height);
+
+  ctx.restore();
+}
+
 function renderFingerplan(ctx, width, height) {
   // Get fingerplan for target text
   const plan = fingerPlan(targetText);
@@ -382,9 +494,6 @@ function renderFingerplan(ctx, width, height) {
     ctx.lineTo(centerX, centerY);
     ctx.stroke();
   }
-
-  // Calculate spacing between events with proper 3D perspective projection
-  const currentEventIndex = typedText.length * 2; // Current position in plan
 
   // 3D world space parameters
   const nearZ = 1.15; // Near plane distance from camera (units in 3D space) - offset to prevent clipping

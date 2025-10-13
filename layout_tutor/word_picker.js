@@ -17,7 +17,7 @@ function calcLevel(i1, i2) {
 }
 
 function currentLevel() {
-  return calcLevel(oldIndex, newIndex);
+  return calcLevel(Math.max(oldIndex, 0), newIndex);
 }
 
 function maxLevel() {
@@ -30,14 +30,14 @@ for (let i = 0; i <= maxLevel(); i++) {
 }
 
 for (let word in wordsDictionary) {
-  let wordLevel = 0;
+  let wordLevel = -1;
   for (let i = 1; i < word.length; i++) {
     let charIndexI = charToIndex[word[i]];
     let charIndexJ = charToIndex[word[i - 1]];
     let bigramLevel = calcLevel(charIndexI, charIndexJ);
     wordLevel = Math.max(bigramLevel, wordLevel);
   }
-  if (Number.isNaN(wordLevel)) {
+  if (Number.isNaN(wordLevel) || wordLevel == -1) {
     wordLevel = 999;
   } else {
     studyLists[wordLevel].push(word);
