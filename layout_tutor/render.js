@@ -279,19 +279,21 @@ function renderTextArea(ctx, width, height) {
       } else {
         ctx.fillStyle = "#f44747"; // Incorrect - red
       }
-    } else if (i === typedText.length) {
-      // Current character to type
+    } else if (i === typedText.length || i === typedText.length + 1) {
+      // Current character and next character to type
       ctx.fillStyle = "#4ec9b0"; // Cyan highlight
-      // Draw cursor (scaled proportionally)
-      const cursorHeight = 55 * scale;
-      const cursorWidth = 4 * scale;
-      const cursorOffset = 40 * scale;
-      ctx.fillRect(
-        x - cursorWidth / 2,
-        startY - cursorOffset,
-        cursorWidth,
-        cursorHeight,
-      );
+      // Draw cursor only for the current character (first of the two)
+      if (i === typedText.length) {
+        const cursorHeight = 55 * scale;
+        const cursorWidth = 4 * scale;
+        const cursorOffset = 40 * scale;
+        ctx.fillRect(
+          x - cursorWidth / 2,
+          startY - cursorOffset,
+          cursorWidth,
+          cursorHeight,
+        );
+      }
     } else {
       // Not yet typed
       ctx.fillStyle = "#d4d4d4"; // Default grey
