@@ -414,6 +414,9 @@ function renderFingerplan(ctx, width, height) {
     zVelocity = 0;
   }
 
+  // Collect text labels to draw later (after all ellipses and hold segments)
+  const textLabels = [];
+
   // Draw finger actions (ovals and holds)
   for (let eventIdx = 0; eventIdx < plan.length; eventIdx++) {
     const event = plan[eventIdx];
@@ -484,34 +487,13 @@ function renderFingerplan(ctx, width, height) {
             );
             ctx.fill();
 
-            // Draw button number with Top Secret font
-            const fontSize = 43.2 * perspectiveFactor;
-            ctx.font = `${fontSize}px 'Top Secret', monospace`;
-            ctx.textAlign = "center";
-            ctx.textBaseline = "bottom";
-
-            // Measure text to create sign post background
-            const textMetrics = ctx.measureText(`{${action}}`);
-            const textWidth = textMetrics.width;
-            const textHeight = fontSize * 1; // Approximate height
-
-            // Draw black rectangle (sign post)
-            ctx.fillStyle = `rgba(0, 0, 0, 1)`;
-            ctx.fillRect(
-              fingerX - textWidth / 2,
-              eventY - textHeight,
-              textWidth,
-              textHeight,
-            );
-
-            // Draw black stroke
-            ctx.strokeStyle = `rgba(0, 0, 0, 1)`;
-            ctx.lineWidth = 3 * perspectiveFactor;
-            ctx.strokeText(`{${action}}`, fingerX, eventY);
-
-            // Draw white fill
-            ctx.fillStyle = `rgba(255, 255, 255, 1)`;
-            ctx.fillText(`{${action}}`, fingerX, eventY);
+            // Store text label info to draw later
+            textLabels.push({
+              action,
+              fingerX,
+              eventY,
+              perspectiveFactor,
+            });
           }
 
           // Draw continuous hold segment from initial press to release
@@ -555,8 +537,8 @@ function renderFingerplan(ctx, width, height) {
                   (fingerBottomX[fingerIdx] - centerX) * endPerspectiveFactor;
 
                 // Draw as a filled quadrilateral with perspective-correct width
-                const startHalfWidth = 3 * startPerspectiveFactor;
-                const endHalfWidth = 3 * endPerspectiveFactor;
+                const startHalfWidth = 15 * startPerspectiveFactor;
+                const endHalfWidth = 15 * endPerspectiveFactor;
 
                 // Calculate the four corners
                 // Direction perpendicular to the guide line (horizontal in screen space)
@@ -599,6 +581,28 @@ function renderFingerplan(ctx, width, height) {
         }
       }
     }
+  }
+
+  // Draw all text labels on top of everything, from back to front
+  // Sort by perspectiveFactor (smaller = farther away)
+  textLabels.sort((a, b) => a.perspectiveFactor - b.perspectiveFactor);
+
+  for (const label of textLabels) {
+    const { action, fingerX, eventY, perspectiveFactor } = label;
+
+    // Draw button number with Bunker Stencil font
+    const fontSize = 43.2 * perspectiveFactor;
+    ctx.font = `${fontSize}px 'Bunker Stencil', monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+
+    ctx.strokeStyle = `#353022`;
+    ctx.lineWidth = 10 * perspectiveFactor;
+    ctx.strokeText(`${action}`, fingerX, eventY);
+
+    // Draw white fill
+    ctx.fillStyle = "rgba(255, 255, 255, 1)";
+    ctx.fillText(`${action}`, fingerX, eventY);
   }
 
   ctx.textAlign = "left";
