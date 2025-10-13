@@ -7,44 +7,60 @@ for (let i = 0; i < n; i++) {
   charToIndex[learning_sequence[i]] = i;
 }
 
-function bigramIndex(newIndex, oldIndex) {
-  return oldIndex + newIndex * n;
+function calcLevel(i1, i2) {
+  const max = Math.max(i1, i2);
+  const min = Math.min(i1, i2);
+  if (i1 == i2) {
+    return -1;
+  }
+  return (max * (max - 1)) / 2 + min;
 }
 
-let studyLists = {};
-for (let i = 0; i < n; i++) {
-  for (let j = 0; j < n; j++) {
-    studyLists[bigramIndex(i, j)] = [];
-  }
+function currentLevel() {
+  return calcLevel(oldIndex, newIndex);
+}
+
+function maxLevel() {
+  return calcLevel(n - 2, n - 1);
+}
+
+let studyLists = [];
+for (let i = 0; i <= maxLevel(); i++) {
+  studyLists[i] = [];
 }
 
 for (let word in wordsDictionary) {
-  let wordIndex = charToIndex[word[0]];
+  let wordLevel = 0;
   for (let i = 1; i < word.length; i++) {
     let charIndexI = charToIndex[word[i]];
     let charIndexJ = charToIndex[word[i - 1]];
-    let oldIndex = Math.min(charIndexI, charIndexJ);
-    let newIndex = Math.max(charIndexI, charIndexJ);
-    let bigramIndexNormal = bigramIndex(newIndex, oldIndex);
-    wordIndex = Math.max(bigramIndexNormal, wordIndex);
+    let bigramLevel = calcLevel(charIndexI, charIndexJ);
+    wordLevel = Math.max(bigramLevel, wordLevel);
   }
-  if (Number.isNaN(wordIndex)) {
-    wordIndex = 999;
+  if (Number.isNaN(wordLevel)) {
+    wordLevel = 999;
   } else {
-    studyLists[wordIndex].push(word);
+    studyLists[wordLevel].push(word);
   }
-  wordsDictionary[word] = wordIndex;
+  wordsDictionary[word] = wordLevel;
 }
 
 // Pick words that only include known bigrams and at least one NEW/OLD or OLD/NEW transition
 function pickWordsForPractice(count = 3) {
-  let maxIndex = bigramIndex(newIndex, oldIndex);
   let ret = [];
-  let wordList = studyLists[maxIndex];
+  let wordList = studyLists[currentLevel()];
 
   if (wordList.length < 2) {
-    wordList.push(learning_sequence[newIndex] + learning_sequence[oldIndex]);
-    wordList.push(learning_sequence[oldIndex] + learning_sequence[newIndex]);
+    wordList.push(
+      learning_sequence[newIndex] +
+        learning_sequence[oldIndex] +
+        learning_sequence[newIndex],
+    );
+    wordList.push(
+      learning_sequence[oldIndex] +
+        learning_sequence[newIndex] +
+        learning_sequence[oldIndex],
+    );
   }
 
   for (let i = 0; i < count; i++) {
