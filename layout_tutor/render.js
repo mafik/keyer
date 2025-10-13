@@ -209,11 +209,11 @@ function renderTachometer(ctx, scale) {
   // Ones barrel: wraps at 10, includes fractional part
   const onesRotation = tachometerLevel % 10;
   // Tens barrel: based on floor of level / 10, plus fractional part from ones crossing 10
-  let tensRotation = Math.floor(tachometerLevel / 10);
+  let tensRotation = Math.floor(tachometerLevel / 10) % 10;
   if (onesRotation > 9) {
     tensRotation += onesRotation - 9;
   }
-  let hundredsRotation = Math.floor(tachometerLevel / 100);
+  let hundredsRotation = Math.floor(tachometerLevel / 100) % 10;
   if (tensRotation > 9) {
     hundredsRotation += tensRotation - 9;
   }

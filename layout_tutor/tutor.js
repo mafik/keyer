@@ -161,14 +161,15 @@ function handleKeyPress(key) {
           newIndex++;
           practiceAlternations = false;
         }
-        if (newIndex == learning_sequence.length - 1) {
+        if (newIndex == learning_sequence.length) {
           // Completed entire layout - increment targetWPM and reset
-          newIndex = 0;
+          newIndex = 1;
           oldIndex = 0;
           targetWPM += 5;
           alert(
-            `Congratulations! You completed the entire layout! Target WPM increased to ${targetWPM}.`,
+            `Congratulations! You completed the entire layout! Target WPM increased to ${targetWPM}. Please proceed to the briefing video.`,
           );
+          window.open("https://www.youtube.com/watch?v=Bl0HcLsGw1I", "_blank");
         }
         saveState();
         // Clear stats history after advancing
