@@ -209,7 +209,7 @@ This is what you can see in your terminal. It's a **pheromone matrix**. It's a m
   </tr>
 </table>
 
-On my PC it took 7004 generations (a couple of hours). In each generation 240 ants went out to search food (the best layout) and only the victorious ant was allowed to deposit the pheromone. The pheromone evaporates a little, so that eventually the quantity of pheromone starts to stabilize. It's a fairly slow process - but only because our ants are searching through mind boggingly large space. Given the complexity of the problem, I think they're doing quite well!
+On my PC it took 21303 generations (it ran overnight). In each generation 240 ants went out to search food (the best layout) and only the victorious ant was allowed to deposit the pheromone. The pheromone evaporates a little, so that eventually the quantity of pheromone starts to stabilize. It's a fairly slow process - but only because our ants are searching through mind boggingly large space. Given the complexity of the problem, I think they're doing quite well!
 
 You will find the resulting layout in best_layout.txt . I do recommend to take a look at it and see how you'd type some of common words that you might enter frequently. I found some of the key combos to be quite interesting (like shifting from `.` or `;` to `Enter`).
 
