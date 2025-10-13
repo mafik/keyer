@@ -700,86 +700,83 @@ void setup() {
   arpeggios[THUMB_1][RING_9] = Mod(KEY_LEFT_GUI);
   arpeggios[RING_9][THUMB_1] = Key(KEY_LEFT_GUI);
 
-  // Generation 7004, 125.88ms
+  // Fingerwalker layout, Generation 21303, 149.21ms
   // Thumb layer 0 (no thumb key pressed)
-  CHORDS[0][0][0][2][0] = Key('z');
-  CHORDS[0][0][0][1][0] = Key('-');
-  CHORDS[0][0][1][0][0] = Key('r');
-  CHORDS[0][0][1][1][0] = Key('a');
-  CHORDS[0][0][2][0][0] = Key('x');
-  CHORDS[0][0][2][1][0] = Key('0');
-  CHORDS[0][1][0][0][0] = Key('e');
-  CHORDS[0][1][0][1][0] = Key('t');
-  CHORDS[0][1][0][2][0] = Key('`');
-  CHORDS[0][1][1][0][0] = Key('o');
-  CHORDS[0][1][1][1][0] = Key('c');
-  CHORDS[0][1][2][0][0] = Key('9');
-  CHORDS[0][1][2][1][0] = Key('8');
-  CHORDS[0][2][0][0][0] = Key('=');
-  CHORDS[0][2][0][1][0] = Key(',');
-  CHORDS[0][2][1][0][0] = Key('y');
   CHORDS[0][2][1][1][0] = Mod(KEY_RIGHT_ALT);
-  CHORDS[0][2][2][1][0] = Key('5');
 
   // Thumb layer 1 (THUMB_0 pressed)
   CHORDS[1][0][0][0][0] = Key(KEY_BACKSPACE);
   CHORDS[1][0][0][0][1] = Key(KEY_DELETE);
-  CHORDS[1][0][0][1][0] = Key('.');
-  CHORDS[1][0][1][0][0] = Key('m');
-  CHORDS[1][0][1][1][0] = Key('b');
-  CHORDS[1][0][2][0][0] = Key('1');
-  CHORDS[1][0][2][1][0] = Key('2');
-  CHORDS[1][1][0][0][0] = Key('p');
-  CHORDS[1][1][0][1][0] = Key('u');
-  CHORDS[1][1][1][0][0] = Key('/');
-  CHORDS[1][1][1][1][0] = Key('h');
-  CHORDS[1][1][2][0][0] = Key('6');
-  CHORDS[1][1][2][1][0] = Key('4');
-  CHORDS[1][2][0][0][0] = Key('7');
-  CHORDS[1][2][0][1][0] = Key('j');
-  CHORDS[1][2][1][0][0] = Key('q');
 
   // Thumb layer 2 (THUMB_1 pressed)
   CHORDS[2][0][0][0][0] = Key(' ');
-  CHORDS[2][0][0][1][0] = Key('s');
-  CHORDS[2][0][1][0][0] = Key('l');
-  CHORDS[2][0][1][1][0] = Key('n');
-  CHORDS[2][0][2][0][0] = Key(';');
-  CHORDS[2][1][2][0][0] = Key('[');
   CHORDS[2][1][0][0][0] = Key('\n');
-  CHORDS[2][1][0][0][1] = Key(KEY_ESC);
-  CHORDS[2][1][0][1][0] = Key('i');
-  CHORDS[2][1][1][0][0] = Key('d');
-  CHORDS[2][1][1][1][0] = Key('g');
-  CHORDS[2][0][2][1][0] = Key(']');
-  CHORDS[2][1][2][1][0] = Key('3');
   CHORDS[2][2][0][0][0] = Key('\t');
-  CHORDS[2][2][0][1][0] = Key('\'');
-  CHORDS[2][2][1][0][0] = Key('v');
-  CHORDS[2][2][1][1][0] = Key('\\');
+  CHORDS[2][1][0][0][1] = Key(KEY_ESC);
 
   // Thumb layer 3 (THUMB_2 pressed) - special keys and navigation
   CHORDS[3][0][0][0][0] = Mod(KEY_LEFT_CTRL);
-  CHORDS[3][0][0][1][0] = Key('f');
-  CHORDS[3][0][0][2][0] = Mod(KEY_LEFT_CTRL, Key('z'));
-  CHORDS[3][0][1][0][0] = Key('w');
   CHORDS[3][0][1][1][0] = Key(KEY_RIGHT_ARROW);
   CHORDS[3][0][1][2][0] = Key(KEY_DOWN_ARROW);
-  CHORDS[3][0][2][0][0] = Mod(KEY_LEFT_CTRL, Key('x'));
   CHORDS[3][0][2][1][0] = Mod(KEY_LEFT_CTRL, Key(KEY_RIGHT_ARROW));
   CHORDS[3][0][2][2][0] = Key(KEY_PAGE_DOWN);
   CHORDS[3][1][0][0][0] = Mod(KEY_RIGHT_GUI, Key(KEY_RETURN));
   CHORDS[3][1][0][1][0] = Key(KEY_LEFT_ARROW);
   CHORDS[3][1][0][2][0] = Key(KEY_UP_ARROW);
-  CHORDS[3][1][1][0][0] = Key('k');
-  CHORDS[3][1][1][1][0] = Mod(KEY_LEFT_CTRL, Key('c'));
-  CHORDS[3][1][2][0][0] = Key('2');
   CHORDS[3][1][2][1][0] = Key(KEY_HOME);
   CHORDS[3][2][0][0][0] = Hold(THUMB_2, KEY_LEFT_ALT, Key(KEY_TAB));
   CHORDS[3][2][0][1][0] = Mod(KEY_LEFT_CTRL, Key(KEY_LEFT_ARROW));
   CHORDS[3][2][0][2][0] = Key(KEY_PAGE_UP);
-  CHORDS[3][2][1][0][0] = Mod(KEY_LEFT_CTRL, Key('v'));
   CHORDS[3][2][1][1][0] = Key(KEY_END);
+
+  CHORDS[3][1][1][1][0] = Key('\'');
+  CHORDS[0][1][2][0][0] = Key(',');
+  CHORDS[0][1][0][0][0] = Key('-');
+  CHORDS[3][0][0][1][0] = Key('.');
+  CHORDS[1][0][1][1][0] = Key('/');
+  CHORDS[0][0][2][1][0] = Key('0');
+  CHORDS[3][0][2][0][0] = Key('1');
+  CHORDS[1][0][2][0][0] = Key('2');
+  CHORDS[2][1][2][1][0] = Key('3');
+  CHORDS[1][1][2][0][0] = Key('4');
+  CHORDS[3][1][2][0][0] = Key('5');
+  CHORDS[1][0][2][1][0] = Key('6');
+  CHORDS[0][1][0][2][0] = Key('7');
+  CHORDS[2][0][2][1][0] = Key('8');
+  CHORDS[2][1][1][1][0] = Key('9');
+  CHORDS[2][0][2][0][0] = Key(';');
+  CHORDS[0][0][0][1][0] = Key('=');
+  CHORDS[2][2][1][0][0] = Key('T');
+  CHORDS[0][0][2][0][0] = Key('[');
+  CHORDS[0][0][0][2][0] = Key('\\');
+  CHORDS[0][1][2][1][0] = Key(']');
+  CHORDS[1][2][0][0][0] = Key('`');
+  CHORDS[0][0][1][1][0] = Key('a');
+  CHORDS[1][1][1][0][0] = Key('b');
+  CHORDS[1][0][0][1][0] = Key('c');
+  CHORDS[2][0][1][1][0] = Key('d');
+  CHORDS[0][1][0][1][0] = Key('e');
+  CHORDS[1][1][1][1][0] = Key('f');
+  CHORDS[3][0][1][0][0] = Key('g');
+  CHORDS[0][2][0][1][0] = Key('h');
+  CHORDS[2][1][0][1][0] = Key('i');
+  CHORDS[1][2][1][0][0] = Key('j');
+  CHORDS[0][2][0][0][0] = Key('k');
+  CHORDS[2][1][1][0][0] = Key('l');
+  CHORDS[1][1][0][0][0] = Key('m');
+  CHORDS[2][0][1][0][0] = Key('n');
+  CHORDS[0][1][1][1][0] = Key('o');
+  CHORDS[1][0][1][0][0] = Key('p');
+  CHORDS[1][2][0][1][0] = Key('q');
+  CHORDS[0][1][1][0][0] = Key('r');
+  CHORDS[0][0][1][0][0] = Key('s');
+  CHORDS[2][0][0][1][0] = Key('t');
+  CHORDS[1][1][0][1][0] = Key('u');
+  CHORDS[3][1][1][0][0] = Key('v');
+  CHORDS[0][2][1][0][0] = Key('w');
+  CHORDS[2][1][2][0][0] = Key('x');
+  CHORDS[0][2][1][1][0] = Key('y');
+  CHORDS[2][2][0][1][0] = Key('z');
 
   // Add Shifts
   for (FingerPosition thumb = 0; thumb <= 3; ++thumb) {
