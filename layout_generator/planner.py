@@ -550,6 +550,7 @@ def main():
     else:
         print(f"   OK: Enough chords available")
 
+    # remove chords that would tip the keyer in hand (too much pressure on 2nd row)
     for thumb in "0123":
         all_chords.remove(thumb + "222")
         all_chords.remove(thumb + "220")
@@ -559,36 +560,26 @@ def main():
         # all_chords.remove(thumb + "122")
         all_chords.remove(thumb + "212")
 
+    all_chords.remove("3100")  # reserved for Win+Enter
+    all_chords.remove("3200")  # reserved for Alt+Tab
+    all_chords.remove("3101")  # reserved for left
+    all_chords.remove("3201")  # reserved for Ctrl+left
+    all_chords.remove("3011")  # reserved for right
+    all_chords.remove("3021")  # reserved for Ctrl+right
+    all_chords.remove("3121")  # reserved for home
+    all_chords.remove("3211")  # reserved for end
+    all_chords.remove("3102")  # reserved for up
+    # all_chords.remove("3202")  # reserved for page up (already removed)
+    all_chords.remove("3012")  # reserved for down
+    # all_chords.remove("3022")  # reserved for page down (already removed)
+    all_chords.remove("3000")  # reserved for ctrl
+
     # Define forced chord assignments
     forced_assignments = {
         " ": "2000",
-        # "a": "0001",
-        "c": "0111",
-        "v": "2210",
-        "x": "0020",
-        "z": "0002",
         "\x08": "1000",  # actually backspace (shift+backspace = delete)
         "\n": "2100",  # actually enter (shift+enter = escape)
         "\t": "2200",
-        "B": "3100",  # actually Win+Enter
-        "U": "3200",  # actually Alt+Tab
-        "C": "3111",  # actually Ctrl+C
-        "V": "3210",  # actually Ctrl+V
-        "X": "3020",  # actually Ctrl+X
-        "Z": "3002",  # actually Ctrl+Z
-        "D": "3101",  # actually left
-        "F": "3201",  # actually Ctrl+left
-        "I": "3011",  # actually right
-        "J": "3021",  # actually Ctrl+right
-        "K": "3121",  # actually home
-        "M": "3211",  # actually end
-        "H": "3102",  # actually up
-        "Q": "3202",  # actually page up
-        "G": "3012",  # actually down
-        "P": "3022",  # actually page down
-        "R": "3000",  # actually ctrl
-        # ogonki
-        # "E": "3010",  # actually ę
     }
 
     # Add forced characters to the character set if not already present
