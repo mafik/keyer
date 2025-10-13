@@ -262,4 +262,4 @@ $ pio run --target clean
   - `beam_optimizer.py` - optional utility to double-check whether the generated layout is (locally) optimal
 - `src/` - code that runs on the ESP32
 - `sdkconfig.ChordKeyboard` - configuration for the ESP-IDF firmware
-- `layout_tutor/` - simple webapp for learning the chording patterns
+- `layout_tutor/` - the home of "Keyer Flight School" - a webapp for learning to type with chords
