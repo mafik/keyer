@@ -484,12 +484,34 @@ function renderFingerplan(ctx, width, height) {
             );
             ctx.fill();
 
-            // Draw button number
-            ctx.fillStyle = `rgba(30, 30, 30, ${perspectiveFactor})`;
-            ctx.font = `${12 * perspectiveFactor}px 'Modern Typewriter', monospace`;
+            // Draw button number with Top Secret font
+            const fontSize = 43.2 * perspectiveFactor;
+            ctx.font = `${fontSize}px 'Top Secret', monospace`;
             ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText(action, fingerX, eventY);
+            ctx.textBaseline = "bottom";
+
+            // Measure text to create sign post background
+            const textMetrics = ctx.measureText(`{${action}}`);
+            const textWidth = textMetrics.width;
+            const textHeight = fontSize * 1; // Approximate height
+
+            // Draw black rectangle (sign post)
+            ctx.fillStyle = `rgba(0, 0, 0, 1)`;
+            ctx.fillRect(
+              fingerX - textWidth / 2,
+              eventY - textHeight,
+              textWidth,
+              textHeight,
+            );
+
+            // Draw black stroke
+            ctx.strokeStyle = `rgba(0, 0, 0, 1)`;
+            ctx.lineWidth = 3 * perspectiveFactor;
+            ctx.strokeText(`{${action}}`, fingerX, eventY);
+
+            // Draw white fill
+            ctx.fillStyle = `rgba(255, 255, 255, 1)`;
+            ctx.fillText(`{${action}}`, fingerX, eventY);
           }
 
           // Draw continuous hold segment from initial press to release
