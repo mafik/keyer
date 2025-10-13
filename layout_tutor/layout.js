@@ -52,3 +52,13 @@ var layout = {
 };
 
 var learning_sequence = "etaoinshrdlcumwfbgjkpqvyxz";
+
+// Press costs used to determine cheapest finger for re-press scenario
+// Indexed by [finger][button_position]
+var fingerPressCost = [
+  [60, 40, 60],
+  [50, 130, 0],
+  [55, 140, 0],
+  [60, 150, 0],
+  [70, 0, 0],
+];

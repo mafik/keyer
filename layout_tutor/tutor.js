@@ -137,9 +137,6 @@ function handleKeyPress(key) {
 
   lastCharTime = now;
 
-  // Start animation for WPM bar decay
-  startAnimation();
-
   // Check if exercise is complete
   if (typedText.length >= targetText.length) {
     // Check if we should advance based on performance

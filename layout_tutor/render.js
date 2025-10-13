@@ -7,7 +7,11 @@ let ctx;
 
 // Animation state
 let animationFrameId = null;
-let isAnimating = false;
+
+// Fingerplan Z animation state
+let currentZOffset = 0; // Current animated Z offset
+let zVelocity = 0; // Z velocity for smooth animation
+let lastAnimationTime = null;
 
 function initRender() {
   canvas = document.getElementById("canvas");
@@ -24,37 +28,6 @@ function initRender() {
     resizeCanvas();
     render();
   });
-}
-
-function startAnimation() {
-  if (isAnimating) return;
-  isAnimating = true;
-  animateFrame();
-}
-
-function stopAnimation() {
-  if (animationFrameId !== null) {
-    cancelAnimationFrame(animationFrameId);
-    animationFrameId = null;
-  }
-  isAnimating = false;
-}
-
-function animateFrame() {
-  if (!isAnimating) return;
-
-  // Check if we should stop animation (more than 5 seconds since last char)
-  if (lastCharTime !== null) {
-    const timeSinceLastChar = (Date.now() - lastCharTime) / 1000;
-    if (timeSinceLastChar >= 5) {
-      stopAnimation();
-      render(); // Final render
-      return;
-    }
-  }
-
-  render();
-  animationFrameId = requestAnimationFrame(animateFrame);
 }
 
 function resizeCanvas() {
@@ -119,12 +92,41 @@ function render() {
   // Render main text area
   renderTextArea(ctx, width, height);
 
+  // Render fingerplan
+  renderFingerplan(ctx, width, height);
+
   // Render stats
   renderStats(ctx, width, height);
 
   // Render debug logs
   // disabled
   // renderDebugLogs(ctx, width, height);
+
+  // Decide whether to continue animation
+  // Animation continues if:
+  // 1. Less than 5 seconds since last char, OR
+  // 2. Z velocity is above threshold (animation still in progress)
+  const velocityThreshold = 0.01;
+  let shouldContinueAnimation = Math.abs(zVelocity) >= velocityThreshold;
+
+  if (lastCharTime !== null) {
+    const timeSinceLastChar = (Date.now() - lastCharTime) / 1000;
+    if (timeSinceLastChar < 5) {
+      shouldContinueAnimation = true;
+    }
+  }
+
+  // Request next frame if we should continue
+  if (shouldContinueAnimation) {
+    if (animationFrameId === null) {
+      animationFrameId = requestAnimationFrame(animateFrame);
+    }
+  }
+}
+
+function animateFrame() {
+  animationFrameId = null;
+  render();
 }
 
 function renderLearningSequence(ctx, width) {
@@ -297,6 +299,288 @@ function renderTextArea(ctx, width, height) {
 
     ctx.fillText(char === " " ? "␣" : char, x, startY);
   }
+}
+
+function SineApproach(value, velocity, period, target, delta_t) {
+  // x = t
+  // P1 = 2 * PI / period
+  // y = a * (1 - sin(x * P1))
+  // y' = -a * P1 * cos(x * P1)
+
+  let P1 = (2 * Math.PI) / Number(period);
+  let y = value - target;
+  let v = Number(velocity);
+
+  let a;
+  if (Math.abs(velocity) < 1e-6) {
+    a = y / 2;
+  } else {
+    a = ((v * v) / P1 / P1 + y * y) / y / 2;
+  }
+
+  if (Math.abs(a) > Math.abs(y)) {
+    a = y;
+  }
+
+  if (v < -Math.abs(a) * P1) {
+    v = -Math.abs(a) * P1;
+  } else if (v > Math.abs(a) * P1) {
+    v = Math.abs(a) * P1;
+  }
+  let fract = Math.abs((a * P1 + v) / (a * P1 - v));
+  let x;
+  if (isNaN(fract)) {
+    x = 0;
+  } else {
+    x = -2 * Math.atan(Math.sqrt(fract));
+  }
+
+  if (x > Math.PI / 2) x -= Math.PI * 2;
+  x += delta_t * P1;
+  if (x > Math.PI / 2) x = Math.PI / 2;
+
+  return [a * (1 - Math.sin(x)) + target, -a * P1 * Math.cos(x)];
+}
+
+function renderFingerplan(ctx, width, height) {
+  // Get fingerplan for target text
+  const plan = fingerPlan(targetText);
+  if (!plan || plan.length === 0) return;
+
+  const numFingers = 5;
+  const marginSide = 60; // Space for WPM/accuracy bars
+  const bottomY = height; // Bottom of screen
+  const centerY = height / 2; // Center of screen (vanishing point)
+
+  // Calculate finger line positions at bottom
+  const fingerSpacing = (width - 2 * marginSide) / (numFingers + 1);
+  const fingerBottomX = [];
+  for (let i = 0; i < numFingers; i++) {
+    fingerBottomX[i] = marginSide + (i + 1) * fingerSpacing;
+  }
+
+  // Center X for convergence
+  const centerX = width / 2;
+
+  // Draw perspective lines for each finger
+  for (let i = 0; i < numFingers; i++) {
+    const gradient = ctx.createLinearGradient(
+      fingerBottomX[i],
+      bottomY,
+      centerX,
+      centerY,
+    );
+    gradient.addColorStop(0, "rgba(200, 200, 200, 0.3)");
+    gradient.addColorStop(1, "rgba(200, 200, 200, 0)");
+
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(fingerBottomX[i], bottomY);
+    ctx.lineTo(centerX, centerY);
+    ctx.stroke();
+  }
+
+  // Calculate spacing between events with proper 3D perspective projection
+  const currentEventIndex = typedText.length * 2; // Current position in plan
+
+  // 3D world space parameters
+  const nearZ = 1.15; // Near plane distance from camera (units in 3D space) - offset to prevent clipping
+  const worldSpacePerEvent = 0.3; // Distance between events in 3D world space
+  const screenBottom = bottomY; // Screen position of near plane
+  const vanishingPoint = centerY; // Vanishing point (horizon)
+
+  // Calculate target Z offset based on typed text
+  const targetZOffset = typedText.length * 2 * worldSpacePerEvent;
+
+  // Animate Z offset using SineApproach with fixed timestep
+  const period = 0.5; // 0.5 second period for responsive animation
+  const delta_t = 1 / 60; // Fixed 60 FPS timestep
+
+  [currentZOffset, zVelocity] = SineApproach(
+    currentZOffset,
+    zVelocity,
+    period,
+    targetZOffset,
+    delta_t,
+  );
+
+  // Clamp to prevent NaN and negative values
+  if (isNaN(currentZOffset) || !isFinite(currentZOffset)) {
+    currentZOffset = targetZOffset;
+    zVelocity = 0;
+  }
+  if (isNaN(zVelocity) || !isFinite(zVelocity)) {
+    zVelocity = 0;
+  }
+
+  // Draw finger actions (ovals and holds)
+  for (let eventIdx = 0; eventIdx < plan.length; eventIdx++) {
+    const event = plan[eventIdx];
+
+    // Calculate 3D world Z position (distance from camera) with animated offset
+    // Use absolute position since currentZOffset is absolute
+    const worldZ = nearZ + eventIdx * worldSpacePerEvent - currentZOffset;
+
+    // Perspective projection: screenY = vanishingPoint + (screenBottom - vanishingPoint) / worldZ
+    // This gives proper perspective where objects at same world distance appear closer on screen as Z increases
+    const eventY = vanishingPoint + (screenBottom - vanishingPoint) / worldZ;
+
+    // Don't skip off-screen events - let browser handle clipping
+
+    // Calculate perspective factor for sizing (0 at vanishing point, 1 at near plane)
+    const perspectiveFactor = 1 / worldZ;
+
+    // Draw for each finger
+    for (let fingerIdx = 0; fingerIdx < numFingers; fingerIdx++) {
+      const action = event[fingerIdx];
+      if (!action || action === "") continue;
+
+      // Calculate X position with perspective
+      const fingerX =
+        centerX + (fingerBottomX[fingerIdx] - centerX) * perspectiveFactor;
+
+      // Calculate size with perspective
+      // Width should match the spacing between finger lines at this depth
+      const laneWidth = fingerSpacing * perspectiveFactor;
+      const ovalWidth = laneWidth * 0.35; // Use proportion of lane width
+
+      // Height: calculate by moving forward/backward along the guide line
+      const ovalZRadius = 0.06; // Radius in Z direction
+      const frontZ = worldZ - ovalZRadius;
+      const backZ = worldZ + ovalZRadius;
+
+      const frontY = vanishingPoint + (screenBottom - vanishingPoint) / frontZ;
+      const backY = vanishingPoint + (screenBottom - vanishingPoint) / backZ;
+
+      // Calculate top edge of oval using Z information (back of oval is the top edge)
+      const topEdgeY = backY;
+
+      // Check if ellipse should be drawn (top edge not below screen bottom)
+      const shouldDrawEllipse = worldZ > 0.5;
+
+      if (eventIdx % 2 === 0) {
+        // Even index: PRESS action
+        if (action === "1" || action === "2" || action === "3") {
+          // Check if this is an initial press (not preceded by hold)
+          const isInitialPress =
+            eventIdx === 0 ||
+            (eventIdx > 0 && plan[eventIdx - 1][fingerIdx] !== "hold");
+
+          if (isInitialPress && shouldDrawEllipse) {
+            const ovalHeight = Math.abs(eventY - backY);
+            // Draw filled oval for initial button press
+            // Sandy desert color: cooler tan/beige with less red
+            ctx.fillStyle = `rgba(194, 178, 128, ${0.8 * perspectiveFactor})`;
+            ctx.beginPath();
+            ctx.ellipse(
+              fingerX,
+              eventY,
+              ovalWidth,
+              ovalHeight,
+              0,
+              0,
+              Math.PI * 2,
+            );
+            ctx.fill();
+
+            // Draw button number
+            ctx.fillStyle = `rgba(30, 30, 30, ${perspectiveFactor})`;
+            ctx.font = `${12 * perspectiveFactor}px 'Modern Typewriter', monospace`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(action, fingerX, eventY);
+          }
+
+          // Draw continuous hold segment from initial press to release
+          // Only draw if this is the initial press
+          if (isInitialPress) {
+            // Find the release event for this press
+            let releaseIdx = eventIdx + 1;
+            while (
+              releaseIdx < plan.length &&
+              plan[releaseIdx][fingerIdx] === "hold"
+            ) {
+              releaseIdx += 2; // Skip to next release event (odd indices)
+            }
+
+            // Draw continuous line from press to release
+            if (
+              releaseIdx < plan.length &&
+              plan[releaseIdx][fingerIdx] === "release"
+            ) {
+              // Calculate release position using absolute positioning
+              const releaseWorldZ =
+                nearZ + releaseIdx * worldSpacePerEvent - currentZOffset;
+              if (releaseWorldZ > 0.5) {
+                // Calculate line start/end positions by offsetting Z slightly
+                // Start just after the press event, clipped at 0.5 to prevent going behind screen
+                const startZ = Math.max(worldZ + 0.05, 0.5);
+                const startPerspectiveFactor = 1 / startZ;
+                const startY =
+                  vanishingPoint + (screenBottom - vanishingPoint) / startZ;
+                const startX =
+                  centerX +
+                  (fingerBottomX[fingerIdx] - centerX) * startPerspectiveFactor;
+
+                // End just before the release event
+                const endZ = releaseWorldZ - 0.05;
+                const endPerspectiveFactor = 1 / endZ;
+                const endY =
+                  vanishingPoint + (screenBottom - vanishingPoint) / endZ;
+                const endX =
+                  centerX +
+                  (fingerBottomX[fingerIdx] - centerX) * endPerspectiveFactor;
+
+                // Draw as a filled quadrilateral with perspective-correct width
+                const startHalfWidth = 3 * startPerspectiveFactor;
+                const endHalfWidth = 3 * endPerspectiveFactor;
+
+                // Calculate the four corners
+                // Direction perpendicular to the guide line (horizontal in screen space)
+                const startLeftX = startX - startHalfWidth;
+                const startRightX = startX + startHalfWidth;
+                const endLeftX = endX - endHalfWidth;
+                const endRightX = endX + endHalfWidth;
+
+                // Sandy desert color for highlight segments
+                ctx.fillStyle = `rgba(194, 178, 128, 0.6)`;
+                ctx.beginPath();
+                ctx.moveTo(startLeftX, startY);
+                ctx.lineTo(endLeftX, endY);
+                ctx.lineTo(endRightX, endY);
+                ctx.lineTo(startRightX, startY);
+                ctx.closePath();
+                ctx.fill();
+              }
+            }
+          }
+        }
+      } else {
+        // Odd index: RELEASE action
+        if (action === "release" && shouldDrawEllipse) {
+          const ovalHeight = Math.abs(eventY - backY);
+          // Draw empty oval for release with sandy desert color
+          ctx.strokeStyle = `rgba(194, 178, 128, ${0.8 * perspectiveFactor})`;
+          ctx.lineWidth = 4 * perspectiveFactor;
+          ctx.beginPath();
+          ctx.ellipse(
+            fingerX,
+            eventY,
+            ovalWidth,
+            ovalHeight,
+            0,
+            0,
+            Math.PI * 2,
+          );
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
 }
 
 function renderStats(ctx, width, height) {
