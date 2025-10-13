@@ -2,7 +2,7 @@
 
 let newIndex = 0; // Position of the new key being learned (start at 1 to skip space-only training)
 let oldIndex = -1; // Position of an already-known key
-let targetWPM = 15; // Starting target WPM, increases by 5 after each completion
+let targetWPM = 10; // Starting target WPM, increases by 5 after each completion
 
 // Thresholds for advancement
 const targetAccuracy = 0.9;
@@ -29,7 +29,7 @@ function loadState() {
       const state = JSON.parse(saved);
       newIndex = state.newIndex || 0;
       oldIndex = state.oldIndex || -1;
-      targetWPM = state.targetWPM || 15;
+      targetWPM = state.targetWPM || 10;
       // phase and recentPerformance are not loaded - they reset on page reload
     } catch (e) {
       addLog("Failed to load progress: " + e);
@@ -41,7 +41,7 @@ function loadState() {
 function resetState() {
   newIndex = 0;
   oldIndex = -1;
-  targetWPM = 15;
+  targetWPM = 10;
   saveState();
 }
 
