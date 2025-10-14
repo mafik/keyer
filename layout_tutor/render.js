@@ -1,10 +1,126 @@
 // Rendering function for the tutor interface
 // Uses global state variables from state.js and tutor.js
 
-// Key number colors - easy to tweak in one place
-const KEY_COLOR_1 = "194, 178, 128"; // Sandy desert color (RGB)
-const KEY_COLOR_2 = "93, 101, 50"; // Darker olive green (RGB)
-const KEY_COLOR_3 = "112, 88, 67"; // Darker brown (RGB)
+// Convert RGB (0-255) to HSL (h: 0-360, s: 0-100, l: 0-100)
+function rgbToHsl(r, g, b) {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+
+  let h = 0,
+    s = 0,
+    l = (max + min) / 2;
+
+  if (delta !== 0) {
+    s = l > 0.5 ? delta / (2 - max - min) : delta / (max + min);
+
+    switch (max) {
+      case r:
+        h = ((g - b) / delta + (g < b ? 6 : 0)) / 6;
+        break;
+      case g:
+        h = ((b - r) / delta + 2) / 6;
+        break;
+      case b:
+        h = ((r - g) / delta + 4) / 6;
+        break;
+    }
+  }
+
+  return [h * 360, s * 100, l * 100];
+}
+
+// Convert HSL back to RGB hex
+function hslToRgbHex(h, s, l) {
+  s /= 100;
+  l /= 100;
+
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+
+  let r = 0,
+    g = 0,
+    b = 0;
+
+  if (h >= 0 && h < 60) {
+    r = c;
+    g = x;
+    b = 0;
+  } else if (h >= 60 && h < 120) {
+    r = x;
+    g = c;
+    b = 0;
+  } else if (h >= 120 && h < 180) {
+    r = 0;
+    g = c;
+    b = x;
+  } else if (h >= 180 && h < 240) {
+    r = 0;
+    g = x;
+    b = c;
+  } else if (h >= 240 && h < 300) {
+    r = x;
+    g = 0;
+    b = c;
+  } else if (h >= 300 && h < 360) {
+    r = c;
+    g = 0;
+    b = x;
+  }
+
+  r = Math.round((r + m) * 255);
+  g = Math.round((g + m) * 255);
+  b = Math.round((b + m) * 255);
+
+  return "#" + [r, g, b].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+// Darken a hex color by reducing lightness in HSL space
+function setLightness(hexColor, lightness = 0.3) {
+  // Parse hex
+  const r = parseInt(hexColor.slice(1, 3), 16);
+  const g = parseInt(hexColor.slice(3, 5), 16);
+  const b = parseInt(hexColor.slice(5, 7), 16);
+
+  // Convert to HSL
+  let [h, s, l] = rgbToHsl(r, g, b);
+
+  // Reduce lightness
+  l = Math.max(0, lightness * 100);
+
+  // Convert back to hex
+  return hslToRgbHex(h, s, l);
+}
+
+// Returns the appropriate key color based on action
+// action: single-digit string ("1", "2", or "3")
+// dark: if true, returns dark variant (for outlines), otherwise returns normal color
+// Returns: hex color string (e.g., "#c2b280")
+function getKeyColor(action, dark = false) {
+  // Base colors
+  let color;
+  if (action === "1") {
+    color = "#c2b280"; // Sandy desert (194, 178, 128)
+  } else if (action === "2") {
+    color = "#5d6532"; // Olive green (93, 101, 50)
+  } else if (action === "3") {
+    color = "#705843"; // Brown (112, 88, 67)
+  } else {
+    color = "#c2b280"; // Default fallback
+  }
+
+  // Return darkened version if requested
+  if (dark) {
+    return setLightness(color, 0.15);
+  }
+
+  return color;
+}
 
 // Canvas - private to render.js
 let canvas;
@@ -483,7 +599,7 @@ function renderAction(ctx, x, y, action, width) {
   ctx.textBaseline = "bottom";
 
   // Draw dark outline
-  ctx.strokeStyle = `#353022`;
+  ctx.strokeStyle = getKeyColor(action, true);
   ctx.lineWidth = strokeWidth;
   ctx.strokeText(action, x, y);
 
@@ -620,16 +736,11 @@ function renderFingerplan(ctx, width, height) {
           if (isInitialPress && shouldDrawEllipse) {
             const ovalHeight = Math.abs(eventY - backY);
             // Draw filled oval for initial button press
-            // Select color based on key number
-            let keyColor;
-            if (action === "1") {
-              keyColor = KEY_COLOR_1;
-            } else if (action === "2") {
-              keyColor = KEY_COLOR_2;
-            } else if (action === "3") {
-              keyColor = KEY_COLOR_3;
-            }
-            ctx.fillStyle = `rgba(${keyColor}, ${0.8 * perspectiveFactor})`;
+            const keyColor = getKeyColor(action);
+            const alpha = Math.round(0.8 * perspectiveFactor * 255)
+              .toString(16)
+              .padStart(2, "0");
+            ctx.fillStyle = `${keyColor}${alpha}`;
             ctx.beginPath();
             ctx.ellipse(
               fingerX,
@@ -703,15 +814,11 @@ function renderFingerplan(ctx, width, height) {
                 const endRightX = endX + endHalfWidth;
 
                 // Select color based on key number
-                let holdColor;
-                if (action === "1") {
-                  holdColor = KEY_COLOR_1;
-                } else if (action === "2") {
-                  holdColor = KEY_COLOR_2;
-                } else if (action === "3") {
-                  holdColor = KEY_COLOR_3;
-                }
-                ctx.fillStyle = `rgba(${holdColor}, 0.6)`;
+                const holdColor = getKeyColor(action);
+                const holdAlpha = Math.round(0.8 * 255 * startPerspectiveFactor)
+                  .toString(16)
+                  .padStart(2, "0");
+                ctx.fillStyle = `${holdColor}${holdAlpha}`;
                 ctx.beginPath();
                 ctx.moveTo(startLeftX, startY);
                 ctx.lineTo(endLeftX, endY);
@@ -744,15 +851,11 @@ function renderFingerplan(ctx, width, height) {
 
           const ovalHeight = Math.abs(eventY - backY);
           // Draw empty oval for release with color matching the press
-          let releaseColor;
-          if (pressAction === "1") {
-            releaseColor = KEY_COLOR_1;
-          } else if (pressAction === "2") {
-            releaseColor = KEY_COLOR_2;
-          } else if (pressAction === "3") {
-            releaseColor = KEY_COLOR_3;
-          }
-          ctx.strokeStyle = `rgba(${releaseColor}, ${0.8 * perspectiveFactor})`;
+          const releaseColor = getKeyColor(pressAction);
+          const releaseAlpha = Math.round(0.8 * perspectiveFactor * 255)
+            .toString(16)
+            .padStart(2, "0");
+          ctx.strokeStyle = `${releaseColor}${releaseAlpha}`;
           ctx.lineWidth = 4 * perspectiveFactor;
           ctx.beginPath();
           ctx.ellipse(
