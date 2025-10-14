@@ -3,8 +3,15 @@
 // Session state (ephemeral - resets on page reload)
 let practiceAlternations = false;
 
+function initialStatsHistory() {
+  return Array.from({ length: statsHistoryWindowSize }, () => ({
+    correct: false,
+    time: 6.0,
+  }));
+}
+
 // Stats history for rolling WPM calculation
-let statsHistory = []; // Array of {correct: boolean, time: number} for last N chars
+let statsHistory = initialStatsHistory(); // Array of {correct: boolean, time: number} for last N chars
 let lastCharTime = null;
 
 // Current exercise state (ephemeral - resets each exercise)
@@ -19,13 +26,7 @@ function init() {
   // Load progress from localStorage
   loadState();
 
-  statsHistory = [];
-  for (let i = 0; i < statsHistoryWindowSize; i++) {
-    statsHistory.push({
-      correct: false,
-      time: 6.0,
-    });
-  }
+  statsHistory = initialStatsHistory();
 
   // Generate initial exercise
   generateExercise();
@@ -181,7 +182,7 @@ function handleKeyPress(key) {
         }
         saveState();
         // Clear stats history after advancing
-        statsHistory = [];
+        statsHistory = initialStatsHistory();
       }
     }
 
