@@ -387,15 +387,16 @@ function renderChordGrid(ctx, width) {
     if (!chord) continue;
 
     // Determine color based on position
-    let color;
+    let fillColor;
+    let strokeColor;
     if (i === newIndex) {
-      color = "#4ec9b0"; // Cyan for NEW
+      fillColor = "#4ec9b0"; // Cyan for NEW
     } else if (i === oldIndex && oldIndex !== newIndex) {
-      color = "#ce9178"; // Orange for OLD
+      fillColor = "#ce9178"; // Orange for OLD
     } else if (i < newIndex) {
-      color = "#6a9955"; // Green for learned
+      fillColor = "#6a9955"; // Green for learned
     } else {
-      color = "#3e3e42"; // Dark gray for not yet learned
+      fillColor = "#858585"; // Dark gray for not yet learned
     }
 
     // chord format starts with Thumb: chord[0]=Thumb, chord[1]=Index, etc.
@@ -409,6 +410,9 @@ function renderChordGrid(ctx, width) {
       if (position !== "0") {
         renderAction(ctx, x, y + circleRadius, position, {
           height: circleRadius * 2,
+          fill: fillColor,
+          strokeWidth: 2,
+          strokeColor: "#3e3e42",
         });
       }
     }
@@ -573,10 +577,11 @@ function drawBarrel(ctx, x, y, width, height, rotation) {
 // Renders an outlined action letter (1, 2, or 3) at the given position
 // x, y: center position in canvas coordinates
 // action: single-digit string ("1", "2", or "3")
-// options: { width?: number, height?: number }
+// options: { width?: number, height?: number, fill?: string }
 //   - width: desired width in pixels (total width including stroke) - uses measureText
 //   - height: desired height in pixels - scales font size directly
 //   - must specify exactly one of width or height
+//   - fill: fill color (default: "bright key color")
 function renderAction(ctx, x, y, action, options) {
   let fontSize;
   let strokeWidth;
@@ -584,7 +589,11 @@ function renderAction(ctx, x, y, action, options) {
   if (options.height !== undefined) {
     // Height-based: scale font size directly
     fontSize = options.height;
-    strokeWidth = fontSize * 0.231; // Original ratio: 10/43.2
+    if (options.strokeWidth !== undefined) {
+      strokeWidth = options.strokeWidth;
+    } else {
+      strokeWidth = fontSize * 0.2;
+    }
   } else if (options.width !== undefined) {
     // Width-based: use measureText
     const width = options.width;
@@ -594,24 +603,34 @@ function renderAction(ctx, x, y, action, options) {
     const baseMetrics = ctx.measureText(action);
     const baseWidth = baseMetrics.width;
 
-    strokeWidth = width * 0.2;
+    if (options.strokeWidth !== undefined) {
+      strokeWidth = options.strokeWidth;
+    } else {
+      strokeWidth = width * 0.2;
+    }
     const targetTextWidth = width - strokeWidth;
     fontSize = (targetTextWidth / baseWidth) * baseFontSize;
   } else {
     throw new Error("renderAction: must specify either width or height");
   }
 
+  const fillColor =
+    options.fill || setLightness(getKeyColor(action, false), 0.8);
+
+  const strokeColor = options.strokeColor || getKeyColor(action, true);
+
   ctx.font = `${fontSize}px 'Bunker Stencil', monospace`;
   ctx.textAlign = "center";
   ctx.textBaseline = "bottom";
 
-  // Draw dark outline
-  ctx.strokeStyle = getKeyColor(action, true);
-  ctx.lineWidth = strokeWidth;
-  ctx.strokeText(action, x, y);
+  if (strokeWidth) {
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = strokeWidth;
+    ctx.strokeText(action, x, y);
+  }
 
-  // Draw white fill
-  ctx.fillStyle = "rgba(255, 255, 255, 1)";
+  // Draw fill
+  ctx.fillStyle = fillColor;
   ctx.fillText(action, x, y);
 }
 
@@ -822,7 +841,7 @@ function renderFingerplan(ctx, width, height) {
 
                 // Select color based on key number
                 const holdColor = getKeyColor(action);
-                const holdAlpha = Math.round(0.8 * 255 * startPerspectiveFactor)
+                const holdAlpha = Math.round(0.8 * 255 * endPerspectiveFactor)
                   .toString(16)
                   .padStart(2, "0");
                 ctx.fillStyle = `${holdColor}${holdAlpha}`;
