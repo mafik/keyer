@@ -461,6 +461,37 @@ function drawBarrel(ctx, x, y, width, height, rotation) {
   ctx.restore();
 }
 
+// Renders an outlined action letter (1, 2, or 3) at the given position
+// x, y: center position in canvas coordinates
+// action: single-digit string ("1", "2", or "3")
+// width: desired width in pixels (total width including stroke)
+function renderAction(ctx, x, y, action, width) {
+  // Measure text at base font size to determine scaling factor
+  const baseFontSize = 20;
+  ctx.font = `${baseFontSize}px 'Bunker Stencil', monospace`;
+  const baseMetrics = ctx.measureText(action);
+  const baseWidth = baseMetrics.width;
+
+  const strokeWidth = width * 0.2;
+
+  // Calculate required font size to achieve desired width (accounting for stroke on both sides)
+  const targetTextWidth = width - strokeWidth;
+  const fontSize = (targetTextWidth / baseWidth) * baseFontSize;
+
+  ctx.font = `${fontSize}px 'Bunker Stencil', monospace`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+
+  // Draw dark outline
+  ctx.strokeStyle = `#353022`;
+  ctx.lineWidth = strokeWidth;
+  ctx.strokeText(action, x, y);
+
+  // Draw white fill
+  ctx.fillStyle = "rgba(255, 255, 255, 1)";
+  ctx.fillText(action, x, y);
+}
+
 function renderFingerplan(ctx, width, height) {
   // Get fingerplan for target text
   const plan = fingerPlan(targetText);
@@ -661,8 +692,8 @@ function renderFingerplan(ctx, width, height) {
                   (fingerBottomX[fingerIdx] - centerX) * endPerspectiveFactor;
 
                 // Draw as a filled quadrilateral with perspective-correct width
-                const startHalfWidth = 15 * startPerspectiveFactor;
-                const endHalfWidth = 15 * endPerspectiveFactor;
+                const startHalfWidth = 25 * startPerspectiveFactor;
+                const endHalfWidth = 25 * endPerspectiveFactor;
 
                 // Calculate the four corners
                 // Direction perpendicular to the guide line (horizontal in screen space)
@@ -746,19 +777,10 @@ function renderFingerplan(ctx, width, height) {
   for (const label of textLabels) {
     const { action, fingerX, eventY, perspectiveFactor } = label;
 
-    // Draw button number with Bunker Stencil font
-    const fontSize = 43.2 * perspectiveFactor;
-    ctx.font = `${fontSize}px 'Bunker Stencil', monospace`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
+    const laneWidth = fingerSpacing * perspectiveFactor;
+    const ovalWidth = laneWidth * 0.35;
 
-    ctx.strokeStyle = `#353022`;
-    ctx.lineWidth = 10 * perspectiveFactor;
-    ctx.strokeText(`${action}`, fingerX, eventY);
-
-    // Draw white fill
-    ctx.fillStyle = "rgba(255, 255, 255, 1)";
-    ctx.fillText(`${action}`, fingerX, eventY);
+    renderAction(ctx, fingerX, eventY, action, ovalWidth * 0.8);
   }
 
   ctx.textAlign = "left";
