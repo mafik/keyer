@@ -19,6 +19,14 @@ function init() {
   // Load progress from localStorage
   loadState();
 
+  statsHistory = [];
+  for (let i = 0; i < statsHistoryWindowSize; i++) {
+    statsHistory.push({
+      correct: false,
+      time: 6.0,
+    });
+  }
+
   // Generate initial exercise
   generateExercise();
 

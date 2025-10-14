@@ -226,7 +226,7 @@ This section is for the people who decided to keep designing their layout rather
 
 ### Building the muscle memory (days 5+)
 
-Within the `layout_tutor/` you will find a small utility that will help you memorize the chording sequences. A version that can teach you the default layout can be found at: [mafik.github.io/keyer/](https://mafik.github.io/keyer/). I hope that you've already made your own layout though! If you did, then put all the chord sequences in the `layout_tutor/layout.js` file. You can also swap out the dictionary (an English dictionary is included in `layout_tutor/words_dictionary.js` by default). The `state.js` file contains some variables like `targetWPM` or `targetAccuracy` which are used by the script to automatically advance you through the exercises - you may tweak them to your liking. When all is fine, just open up `index.html` in a browser and start typing.
+Within the `layout_tutor/` you will find a small utility that will help you memorize the chording sequences. A version that can teach you the default layout can be found at: [mafik.github.io/keyer/](https://mafik.github.io/keyer/). I hope that you've already made your own layout though! If you did, then put all the chord sequences in the `layout_tutor/layout.js` file. You can also swap out the dictionary (an English dictionary is included in `layout_tutor/words_dictionary.js` by default). When all is fine, just open up `index.html` in a browser and start typing.
 
 The most important element of proper typing on a keyer is minimizing key presses. The chords are optimized to reuse the finger positions so most often you will only have to press one extra finger. That's the main thing you have to keep in mind when going through the exercises.
 
