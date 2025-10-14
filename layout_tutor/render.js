@@ -1,6 +1,11 @@
 // Rendering function for the tutor interface
 // Uses global state variables from state.js and tutor.js
 
+// Key number colors - easy to tweak in one place
+const KEY_COLOR_1 = "194, 178, 128"; // Sandy desert color (RGB)
+const KEY_COLOR_2 = "93, 101, 50"; // Darker olive green (RGB)
+const KEY_COLOR_3 = "112, 88, 67"; // Darker brown (RGB)
+
 // Canvas - private to render.js
 let canvas;
 let ctx;
@@ -584,8 +589,16 @@ function renderFingerplan(ctx, width, height) {
           if (isInitialPress && shouldDrawEllipse) {
             const ovalHeight = Math.abs(eventY - backY);
             // Draw filled oval for initial button press
-            // Sandy desert color: cooler tan/beige with less red
-            ctx.fillStyle = `rgba(194, 178, 128, ${0.8 * perspectiveFactor})`;
+            // Select color based on key number
+            let keyColor;
+            if (action === "1") {
+              keyColor = KEY_COLOR_1;
+            } else if (action === "2") {
+              keyColor = KEY_COLOR_2;
+            } else if (action === "3") {
+              keyColor = KEY_COLOR_3;
+            }
+            ctx.fillStyle = `rgba(${keyColor}, ${0.8 * perspectiveFactor})`;
             ctx.beginPath();
             ctx.ellipse(
               fingerX,
@@ -658,8 +671,16 @@ function renderFingerplan(ctx, width, height) {
                 const endLeftX = endX - endHalfWidth;
                 const endRightX = endX + endHalfWidth;
 
-                // Sandy desert color for highlight segments
-                ctx.fillStyle = `rgba(194, 178, 128, 0.6)`;
+                // Select color based on key number
+                let holdColor;
+                if (action === "1") {
+                  holdColor = KEY_COLOR_1;
+                } else if (action === "2") {
+                  holdColor = KEY_COLOR_2;
+                } else if (action === "3") {
+                  holdColor = KEY_COLOR_3;
+                }
+                ctx.fillStyle = `rgba(${holdColor}, 0.6)`;
                 ctx.beginPath();
                 ctx.moveTo(startLeftX, startY);
                 ctx.lineTo(endLeftX, endY);
@@ -674,9 +695,33 @@ function renderFingerplan(ctx, width, height) {
       } else {
         // Odd index: RELEASE action
         if (action === "release" && shouldDrawEllipse) {
+          // Find the corresponding press action to determine color
+          // Look backwards to find the most recent press on this finger
+          let pressAction = "1"; // Default to key 1
+          for (let prevIdx = eventIdx - 1; prevIdx >= 0; prevIdx--) {
+            const prevEvent = plan[prevIdx];
+            const prevFingerAction = prevEvent[fingerIdx];
+            if (
+              prevFingerAction === "1" ||
+              prevFingerAction === "2" ||
+              prevFingerAction === "3"
+            ) {
+              pressAction = prevFingerAction;
+              break;
+            }
+          }
+
           const ovalHeight = Math.abs(eventY - backY);
-          // Draw empty oval for release with sandy desert color
-          ctx.strokeStyle = `rgba(194, 178, 128, ${0.8 * perspectiveFactor})`;
+          // Draw empty oval for release with color matching the press
+          let releaseColor;
+          if (pressAction === "1") {
+            releaseColor = KEY_COLOR_1;
+          } else if (pressAction === "2") {
+            releaseColor = KEY_COLOR_2;
+          } else if (pressAction === "3") {
+            releaseColor = KEY_COLOR_3;
+          }
+          ctx.strokeStyle = `rgba(${releaseColor}, ${0.8 * perspectiveFactor})`;
           ctx.lineWidth = 4 * perspectiveFactor;
           ctx.beginPath();
           ctx.ellipse(
