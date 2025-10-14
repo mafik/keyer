@@ -216,9 +216,6 @@ function render() {
 
   renderTachometer(ctx, scale);
 
-  // Render main text area
-  renderTextArea(ctx, width, height);
-
   // Animate tachometer using SineApproach
   const targetLevel = currentLevel();
   const tachometerPeriod = 3.0; // 3 second animation period
@@ -234,6 +231,9 @@ function render() {
 
   // Render fingerplan
   renderFingerplan(ctx, width, height);
+
+  // Render main text area
+  renderTextArea(ctx, width, height);
 
   // Render stats
   renderStats(ctx, width, height);
@@ -426,7 +426,7 @@ function renderTextArea(ctx, width, height) {
   const maxWidth = width - 120; // Leave margin on both sides
 
   // Set initial font to measure text
-  ctx.font = `${baseFontSize}px 'Modern Typewriter', monospace`;
+  ctx.font = `${baseFontSize}px 'Zrnic'`;
 
   // Measure the actual width of the text
   const displayText = targetText.replace(/ /g, "␣");
@@ -440,50 +440,125 @@ function renderTextArea(ctx, width, height) {
   }
 
   const fontSize = baseFontSize * scale;
-  ctx.font = `${fontSize}px 'Modern Typewriter', monospace`;
+  ctx.font = `${fontSize}px 'Modern Typewriter'`;
 
-  // Measure again with scaled font to get accurate character width
-  const charWidth = ctx.measureText("A").width;
+  // Measure all prefix widths for proper positioning (non-monospace)
+  // Array will be length displayText.length + 1
+  // measuredWidths[0] = 0, measuredWidths[i] = width of displayText[0..i-1]
+  const measuredWidths = [0];
+  for (let i = 1; i <= displayText.length; i++) {
+    const prefix = displayText.substring(0, i);
+    const prefixWidth = ctx.measureText(prefix).width;
+    measuredWidths.push(prefixWidth);
+  }
 
   const startY = height / 2 + 24 * scale;
 
   // Calculate text positioning
-  const totalWidth = targetText.length * charWidth;
+  const totalWidth = measuredWidths[displayText.length];
   const startX = width / 2 - totalWidth / 2;
 
-  // Render each character
+  // Draw radar display background
+  const padding = 30;
+  const radarX = startX - padding;
+  const radarY = startY - 60 * scale;
+  const radarWidth = totalWidth + padding * 2;
+  const radarHeight = 80 * scale;
+  const radarRadius = 35;
+
+  // Outer shadow for depth
+  ctx.save();
+  ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
+  ctx.shadowBlur = 20;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 8;
+
+  // Draw main background with gradient
+  const bgGradient = ctx.createRadialGradient(
+    width / 2,
+    height / 2,
+    0,
+    width / 2,
+    height / 2,
+    radarWidth / 2,
+  );
+  bgGradient.addColorStop(0, "#0a0f0a");
+  bgGradient.addColorStop(1, "#050805");
+
+  ctx.fillStyle = bgGradient;
+  ctx.beginPath();
+  ctx.roundRect(radarX, radarY, radarWidth, radarHeight, radarRadius);
+  ctx.fill();
+  ctx.restore();
+
+  // Inner glow effect
+  ctx.save();
+  ctx.strokeStyle = "rgba(0, 255, 100, 0.4)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(
+    radarX + 5,
+    radarY + 5,
+    radarWidth - 10,
+    radarHeight - 10,
+    radarRadius - 3,
+  );
+  ctx.stroke();
+  ctx.restore();
+
+  // Render each character with green radar display colors
   for (let i = 0; i < targetText.length; i++) {
     const char = targetText[i];
-    const x = startX + i * charWidth;
+    const x = startX + measuredWidths[i];
 
     if (i < typedText.length) {
       // Already typed
       if (typedText[i] === char) {
-        ctx.fillStyle = "#6a9955"; // Correct - green
+        ctx.fillStyle = "#004400"; // Correct - dark green
       } else {
-        ctx.fillStyle = "#f44747"; // Incorrect - red
+        ctx.fillStyle = "#ff4444"; // Incorrect - red
       }
     } else if (i === typedText.length || i === typedText.length + 1) {
       // Current character and next character to type
-      ctx.fillStyle = "#4ec9b0"; // Cyan highlight
+      ctx.fillStyle = "#00ff66"; // Bright green highlight
       // Draw cursor only for the current character (first of the two)
       if (i === typedText.length) {
-        const cursorHeight = 55 * scale;
-        const cursorWidth = 4 * scale;
-        const cursorOffset = 40 * scale;
-        ctx.fillRect(
-          x - cursorWidth / 2,
-          startY - cursorOffset,
-          cursorWidth,
-          cursorHeight,
-        );
+        // Calculate overline dimensions spanning current and next character
+        const twoCharWidth =
+          i + 2 <= measuredWidths.length - 1
+            ? measuredWidths[i + 2] - measuredWidths[i]
+            : measuredWidths[i + 1] - measuredWidths[i];
+        const overlineHeight = 3;
+        const overlineOffset = 45 * scale;
+
+        // Cursor as overline with green glow
+        ctx.save();
+        ctx.shadowColor = "#00ff66";
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = "#00ff66";
+        ctx.strokeStyle = "#00ff66";
+        ctx.lineWidth = overlineHeight;
+        ctx.beginPath();
+        ctx.moveTo(x, startY - overlineOffset);
+        ctx.lineTo(x + twoCharWidth, startY - overlineOffset);
+        ctx.moveTo(x + twoCharWidth / 2, startY - overlineOffset);
+        ctx.lineTo(x + twoCharWidth / 2, height * 0.4);
+        ctx.lineTo(width * 0.2, height * 0.4);
+        // ctx.lineTo(100, startY - overlineOffset);
+        ctx.stroke();
+        ctx.restore();
       }
     } else {
       // Not yet typed
-      ctx.fillStyle = "#d4d4d4"; // Default grey
+      ctx.fillStyle = "#004400"; // Dark green
     }
 
+    // Add slight glow to text
+    ctx.save();
+    ctx.shadowColor = "rgba(0, 255, 100, 0.5)";
+    ctx.shadowBlur = 3;
     ctx.fillText(char === " " ? "␣" : char, x, startY);
+    ctx.restore();
   }
 }
 
@@ -654,6 +729,71 @@ function renderFingerplan(ctx, width, height) {
   // Center X for convergence
   const centerX = width / 2;
 
+  // 3D world space parameters
+  const nearZ = 1.15; // Near plane distance from camera (units in 3D space) - offset to prevent clipping
+  const worldSpacePerEvent = 0.3; // Distance between events in 3D world space
+  const screenBottom = bottomY; // Screen position of near plane
+  const vanishingPoint = centerY; // Vanishing point (horizon)
+
+  // Calculate target Z offset based on typed text
+  const targetZOffset = typedText.length * 2 * worldSpacePerEvent;
+
+  // Animate Z offset using SineApproach with fixed timestep
+  const period = 0.5; // 0.5 second period for responsive animation
+  const delta_t = 1 / 60; // Fixed 60 FPS timestep
+
+  {
+    const startZ =
+      nearZ +
+      (typedText.length * 2 + 0.5) * worldSpacePerEvent -
+      currentZOffset;
+    const endZ =
+      nearZ +
+      (typedText.length * 2 + 2.5) * worldSpacePerEvent -
+      currentZOffset;
+    const midZ =
+      nearZ +
+      (typedText.length * 2 + 1.5) * worldSpacePerEvent -
+      currentZOffset;
+    const startY = vanishingPoint + (screenBottom - vanishingPoint) / startZ;
+    const midY = vanishingPoint + (screenBottom - vanishingPoint) / midZ;
+    const endY = vanishingPoint + (screenBottom - vanishingPoint) / endZ;
+
+    const midPerspectiveFactor = 1 / midZ;
+    const endPerspectiveFactor = 1 / endZ;
+    const startPerspectiveFactor = 1 / startZ;
+
+    const plateWidth = width * 0.4;
+
+    ctx.save();
+    ctx.shadowColor = "#00ff66";
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = "#00ff66";
+    ctx.strokeStyle = "#00ff66";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(width * 0.2 + 3, height * 0.4);
+    ctx.lineTo(width * 0.2, height * 0.4);
+    if (endZ > nearZ) {
+      ctx.lineTo(width * 0.2, midY);
+      ctx.lineTo(centerX - plateWidth * midPerspectiveFactor, midY);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(centerX - plateWidth * endPerspectiveFactor, endY);
+      ctx.lineTo(centerX - plateWidth * startPerspectiveFactor, startY);
+      ctx.lineTo(centerX + plateWidth * startPerspectiveFactor, startY);
+      ctx.lineTo(centerX + plateWidth * endPerspectiveFactor, endY);
+      ctx.lineTo(centerX - plateWidth * endPerspectiveFactor, endY);
+      ctx.fillStyle = "#0a0f0a";
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      ctx.lineTo(width * 0.2, height);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   // Draw perspective lines for each finger
   for (let i = 0; i < numFingers; i++) {
     const gradient = ctx.createLinearGradient(
@@ -672,19 +812,6 @@ function renderFingerplan(ctx, width, height) {
     ctx.lineTo(centerX, centerY);
     ctx.stroke();
   }
-
-  // 3D world space parameters
-  const nearZ = 1.15; // Near plane distance from camera (units in 3D space) - offset to prevent clipping
-  const worldSpacePerEvent = 0.3; // Distance between events in 3D world space
-  const screenBottom = bottomY; // Screen position of near plane
-  const vanishingPoint = centerY; // Vanishing point (horizon)
-
-  // Calculate target Z offset based on typed text
-  const targetZOffset = typedText.length * 2 * worldSpacePerEvent;
-
-  // Animate Z offset using SineApproach with fixed timestep
-  const period = 0.5; // 0.5 second period for responsive animation
-  const delta_t = 1 / 60; // Fixed 60 FPS timestep
 
   [currentZOffset, zVelocity] = SineApproach(
     currentZOffset,
@@ -744,9 +871,6 @@ function renderFingerplan(ctx, width, height) {
 
       const frontY = vanishingPoint + (screenBottom - vanishingPoint) / frontZ;
       const backY = vanishingPoint + (screenBottom - vanishingPoint) / backZ;
-
-      // Calculate top edge of oval using Z information (back of oval is the top edge)
-      const topEdgeY = backY;
 
       // Check if ellipse should be drawn (top edge not below screen bottom)
       const shouldDrawEllipse = worldZ > 0.5;
