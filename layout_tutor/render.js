@@ -407,16 +407,9 @@ function renderChordGrid(ctx, width) {
       const position = chord[finger];
 
       if (position !== "0") {
-        // Draw bright circle
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(x, y, circleRadius, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Draw position number inside
-        ctx.fillStyle = "#1e1e1e";
-        ctx.font = "bold 12px 'Modern Typewriter', monospace";
-        ctx.fillText(position, x, y + 4);
+        renderAction(ctx, x, y + circleRadius, position, {
+          height: circleRadius * 2,
+        });
       }
     }
   }
@@ -580,19 +573,33 @@ function drawBarrel(ctx, x, y, width, height, rotation) {
 // Renders an outlined action letter (1, 2, or 3) at the given position
 // x, y: center position in canvas coordinates
 // action: single-digit string ("1", "2", or "3")
-// width: desired width in pixels (total width including stroke)
-function renderAction(ctx, x, y, action, width) {
-  // Measure text at base font size to determine scaling factor
-  const baseFontSize = 20;
-  ctx.font = `${baseFontSize}px 'Bunker Stencil', monospace`;
-  const baseMetrics = ctx.measureText(action);
-  const baseWidth = baseMetrics.width;
+// options: { width?: number, height?: number }
+//   - width: desired width in pixels (total width including stroke) - uses measureText
+//   - height: desired height in pixels - scales font size directly
+//   - must specify exactly one of width or height
+function renderAction(ctx, x, y, action, options) {
+  let fontSize;
+  let strokeWidth;
 
-  const strokeWidth = width * 0.2;
+  if (options.height !== undefined) {
+    // Height-based: scale font size directly
+    fontSize = options.height;
+    strokeWidth = fontSize * 0.231; // Original ratio: 10/43.2
+  } else if (options.width !== undefined) {
+    // Width-based: use measureText
+    const width = options.width;
 
-  // Calculate required font size to achieve desired width (accounting for stroke on both sides)
-  const targetTextWidth = width - strokeWidth;
-  const fontSize = (targetTextWidth / baseWidth) * baseFontSize;
+    const baseFontSize = 20;
+    ctx.font = `${baseFontSize}px 'Bunker Stencil', monospace`;
+    const baseMetrics = ctx.measureText(action);
+    const baseWidth = baseMetrics.width;
+
+    strokeWidth = width * 0.2;
+    const targetTextWidth = width - strokeWidth;
+    fontSize = (targetTextWidth / baseWidth) * baseFontSize;
+  } else {
+    throw new Error("renderAction: must specify either width or height");
+  }
 
   ctx.font = `${fontSize}px 'Bunker Stencil', monospace`;
   ctx.textAlign = "center";
@@ -883,7 +890,7 @@ function renderFingerplan(ctx, width, height) {
     const laneWidth = fingerSpacing * perspectiveFactor;
     const ovalWidth = laneWidth * 0.35;
 
-    renderAction(ctx, fingerX, eventY, action, ovalWidth * 0.8);
+    renderAction(ctx, fingerX, eventY, action, { height: ovalWidth * 0.9 });
   }
 
   ctx.textAlign = "left";
