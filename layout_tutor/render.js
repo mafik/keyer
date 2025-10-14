@@ -138,6 +138,12 @@ let lastAnimationTime = null;
 let tachometerLevel = 0; // Current animated tachometer level (starts at 0)
 let tachometerVelocity = 0; // Velocity for smooth animation
 
+let accuracyValue = 0;
+let accuracyVelocity = 0;
+
+let wpmValue = 0;
+let wpmVelocity = 0;
+
 function initRender() {
   canvas = document.getElementById("canvas");
   ctx = canvas.getContext("2d");
@@ -197,6 +203,53 @@ function render() {
     scale = Math.min(scale, maxHeight / sequenceAndGridHeight);
   }
 
+  // Animate tachometer using SineApproach
+  const targetLevel = currentLevel();
+  const wpm = getCurrentWPM();
+  const targetAccuracy = getCurrentAccuracy();
+  const tachometerPeriod = 3.0; // 3 second animation period
+  const delta_t = 1 / 60; // Fixed 60 FPS timestep
+
+  [tachometerLevel, tachometerVelocity] = SineApproach(
+    tachometerLevel,
+    tachometerVelocity,
+    tachometerPeriod,
+    targetLevel,
+    delta_t,
+  );
+  [accuracyValue, accuracyVelocity] = SineApproach(
+    accuracyValue,
+    accuracyVelocity,
+    0.5,
+    targetAccuracy,
+    delta_t,
+  );
+  [wpmValue, wpmVelocity] = SineApproach(
+    wpmValue,
+    wpmVelocity,
+    0.5,
+    wpm,
+    delta_t,
+  );
+
+  const velocityThreshold = 0.01;
+  let shouldContinueAnimation =
+    Math.abs(zVelocity) >= velocityThreshold ||
+    Math.abs(tachometerVelocity) >= velocityThreshold ||
+    Math.abs(accuracyVelocity) >= velocityThreshold ||
+    Math.abs(wpmVelocity) >= velocityThreshold;
+
+  // Render stats
+  {
+    // Render vertical WPM bar on left
+    renderWPMBar(ctx, height, wpmValue);
+
+    // Render vertical accuracy bar on right
+    renderAccuracyBar(ctx, width, height, accuracyValue);
+
+    ctx.textAlign = "left";
+  }
+
   // Save context and apply scaling if needed
   ctx.save();
   if (scale < 1) {
@@ -216,41 +269,15 @@ function render() {
 
   renderTachometer(ctx, scale);
 
-  // Animate tachometer using SineApproach
-  const targetLevel = currentLevel();
-  const tachometerPeriod = 3.0; // 3 second animation period
-  const delta_t = 1 / 60; // Fixed 60 FPS timestep
-
-  [tachometerLevel, tachometerVelocity] = SineApproach(
-    tachometerLevel,
-    tachometerVelocity,
-    tachometerPeriod,
-    targetLevel,
-    delta_t,
-  );
-
   // Render fingerplan
   renderFingerplan(ctx, width, height);
 
   // Render main text area
   renderTextArea(ctx, width, height);
 
-  // Render stats
-  renderStats(ctx, width, height);
-
   // Render debug logs
   // disabled
   // renderDebugLogs(ctx, width, height);
-
-  // Decide whether to continue animation
-  // Animation continues if:
-  // 1. Less than 5 seconds since last char, OR
-  // 2. Z velocity is above threshold (animation still in progress), OR
-  // 3. Tachometer velocity is above threshold (tachometer animating)
-  const velocityThreshold = 0.01;
-  let shouldContinueAnimation =
-    Math.abs(zVelocity) >= velocityThreshold ||
-    Math.abs(tachometerVelocity) >= velocityThreshold;
 
   if (lastCharTime !== null) {
     const timeSinceLastChar = (Date.now() - lastCharTime) / 1000;
@@ -1040,20 +1067,7 @@ function renderFingerplan(ctx, width, height) {
   ctx.textBaseline = "alphabetic";
 }
 
-function renderStats(ctx, width, height) {
-  const wpm = getCurrentWPM();
-  const accuracy = getCurrentAccuracy();
-
-  // Render vertical WPM bar on left
-  renderWPMBar(ctx, height, wpm);
-
-  // Render vertical accuracy bar on right
-  renderAccuracyBar(ctx, width, height, accuracy);
-
-  ctx.textAlign = "left";
-}
-
-const barWidth = 6;
+const barWidth = 15; // Increased width for the background bars
 
 function renderWPMBar(ctx, height, wpm) {
   const barX = 0; // Touch left edge
@@ -1064,92 +1078,185 @@ function renderWPMBar(ctx, height, wpm) {
   // This means targetWPM maps to height/2, so maxWPM = targetWPM * 2
   const maxWPM = targetWPM * 2;
 
-  // Draw target WPM tick at exactly center left
-  const targetY = height / 2; // Exactly center vertically
-  ctx.fillStyle = "#858585";
-  ctx.fillRect(barX, targetY - 1, barWidth + 10, 2);
+  {
+    let ones = wpm % 10;
+    let tens = Math.floor(wpm / 10) % 10;
+    if (ones > 9) {
+      tens += ones - 9;
+    }
+    let hundreds = Math.floor(wpm / 100) % 10;
+    if (tens > 9) {
+      hundreds += tens - 9;
+    }
+
+    ctx.fillStyle = "#5D6532";
+    ctx.beginPath();
+    ctx.roundRect(-10, barBottomY - 60, 95, 80, 10);
+    ctx.filter = "drop-shadow(0px 0px 8px rgba(0, 0, 0, 0.5))";
+    ctx.fill();
+    ctx.filter = "none";
+
+    drawBarrel(ctx, barX + barWidth + 5, barBottomY - 30, 20, 25, hundreds);
+    drawBarrel(ctx, barX + barWidth + 24, barBottomY - 30, 20, 25, tens);
+    drawBarrel(ctx, barX + barWidth + 43, barBottomY - 30, 20, 25, ones);
+
+    ctx.fillStyle = "#d4d4d4";
+    ctx.font = "22px 'Bunker Stencil', monospace";
+    ctx.textAlign = "right";
+    ctx.fillText("WPM", barX + barWidth + 62, barBottomY - 35);
+    ctx.textAlign = "left";
+  }
+
+  ctx.fillStyle = "#111";
+  ctx.filter = "drop-shadow(0px 0px 5px #000000)";
+  ctx.fillRect(barX, 0, barWidth, barHeight);
+  ctx.filter = "none";
+
+  // Calculate positions for green/red section markers
+  const targetY = height / 2; // Target WPM at center
+
+  // Draw red section marker (below target) along outer edge
+  ctx.fillStyle = "#660000"; // Dark red, not pulling attention
+  ctx.fillRect(barX, targetY, barWidth / 3, barBottomY - targetY);
+
+  // Draw green section marker (above target) along outer edge
+  ctx.fillStyle = "#006600"; // Dark green, not pulling attention
+  ctx.fillRect(barX, 0, barWidth / 3, targetY);
+
+  // Draw ticks every 1 WPM
+  ctx.fillStyle = "#aaa"; // Dark gray ticks
+  for (let tickWPM = 0; tickWPM <= maxWPM; tickWPM += 1) {
+    const tickY = barBottomY - (tickWPM / maxWPM) * barHeight;
+    const tickWidth = tickWPM % 5 === 0 ? barWidth : (barWidth * 2) / 3; // Longer ticks every 5 WPM
+    ctx.fillRect(barX, tickY - 0.5, tickWidth, 1);
+  }
+
+  // Draw target WPM tick
+  ctx.fillStyle = "#ccc";
+  ctx.fillRect(barX, targetY - 1.5, barWidth, 3);
 
   // Draw target WPM number next to the tick
-  ctx.fillStyle = "#858585";
-  ctx.font = "16px 'Modern Typewriter', monospace";
+  ctx.fillStyle = "#aaa";
+  ctx.font = "12px 'Modern Typewriter', monospace";
   ctx.textAlign = "left";
-  ctx.fillText(targetWPM.toString(), barX + barWidth + 10, targetY + 5);
+  ctx.fillText(targetWPM.toString(), barX + barWidth + 5, targetY + 4);
 
-  // Draw current WPM bar
+  // Draw white dial indicator for current WPM along the edge
   const currentHeight = Math.min((wpm / maxWPM) * barHeight, barHeight);
   const currentY = barBottomY - currentHeight;
-  ctx.fillStyle = "#4ec9b0";
-  ctx.fillRect(barX, currentY, barWidth, currentHeight);
 
-  // Draw WPM text at bottom left
-  ctx.fillStyle = "#4ec9b0";
-  ctx.font = "20px 'Modern Typewriter', monospace";
-  ctx.textAlign = "left";
-  ctx.fillText(
-    Math.round(wpm).toString(),
-    barX + barWidth + 10,
-    barBottomY - 30,
-  );
-
-  // Draw "WPM" label
-  ctx.fillStyle = "#858585";
-  ctx.font = "12px 'Modern Typewriter', monospace";
-  ctx.fillText("WPM", barX + barWidth + 10, barBottomY - 15);
-
-  ctx.textAlign = "left";
+  // Draw dial as a triangle pointing right
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.moveTo(barX, currentY); // Point at edge
+  ctx.lineTo(barX + 8, currentY - 5); // Top corner
+  ctx.lineTo(barX + barWidth, currentY - 5); // Top corner
+  ctx.lineTo(barX + barWidth, currentY + 5); // Bottom corner
+  ctx.lineTo(barX + 8, currentY + 5); // Bottom corner
+  ctx.closePath();
+  ctx.fill();
 }
 
 function renderAccuracyBar(ctx, width, height, accuracy) {
   const barX = width - barWidth; // Touch right edge
   const barBottomY = height; // Touch bottom edge
-  const barHeight = height;
+  const perfectHeight = height * 0.5;
+  const barHeight = perfectHeight / targetAccuracy;
+  const barY = barBottomY - barHeight;
 
-  // Scale so that targetAccuracy appears at exactly center (height/2)
-  // This means targetAccuracy (90%) maps to height/2, so max = targetAccuracy * 2
-  const maxAccuracy = targetAccuracy * 100 * 2; // Convert to percentage and double
+  const maxAccuracy = 100;
+
+  const targetY = height / 2; // Target accuracy at center
+
+  {
+    // Draw accuracy text at bottom right
+
+    let accOnes = accuracy % 10;
+    let accTens = Math.floor(accuracy / 10) % 10;
+    if (accOnes > 9) {
+      accTens += accOnes - 9;
+    }
+    let accHundreds = Math.floor(accuracy / 100) % 10;
+    if (accTens > 9) {
+      accHundreds += accTens - 9;
+    }
+
+    ctx.fillStyle = "#5D6532";
+    ctx.beginPath();
+    ctx.roundRect(width + 10, barBottomY - 60, -95, 80, 10);
+    ctx.filter = "drop-shadow(0px 0px 8px rgba(0, 0, 0, 0.5))";
+    ctx.fill();
+    ctx.filter = "none";
+
+    drawBarrel(ctx, barX - 63, barBottomY - 30, 20, 25, accHundreds);
+    drawBarrel(ctx, barX - 44, barBottomY - 30, 20, 25, accTens);
+    drawBarrel(ctx, barX - 25, barBottomY - 30, 20, 25, accOnes);
+
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#d4d4d4";
+    ctx.save();
+    ctx.translate(barX - 8, barBottomY - 35);
+    ctx.scale(1.3, 1);
+    ctx.font = "22px 'Bunker Stencil', monospace";
+    ctx.fillText("ACC", 0, 0);
+    ctx.restore();
+
+    ctx.textAlign = "left";
+  }
+
+  // Draw black background bar (full height, skeuomorphic - not 100% black)
+  ctx.fillStyle = "#111";
+  ctx.filter = "drop-shadow(0 0 5px black)";
+  ctx.fillRect(barX, barY, barWidth, barHeight);
+  ctx.filter = "none";
+
+  // Draw red section marker (below target) along outer edge
+  ctx.fillStyle = "#660000"; // Dark red, not pulling attention
+  ctx.fillRect(width, targetY, -barWidth / 3, barBottomY - targetY);
+
+  // Draw green section marker (above target) along outer edge
+  ctx.fillStyle = "#006600"; // Dark green, not pulling attention
+  ctx.fillRect(width, barY, -barWidth / 3, targetY - barY);
+
+  // Draw ticks every 1% (smaller) and every 10% (larger)
+  ctx.fillStyle = "#aaa"; // Dark gray ticks
+  for (let tickPercent = 0; tickPercent <= maxAccuracy; tickPercent += 5) {
+    const tickY = barBottomY - (tickPercent / maxAccuracy) * barHeight;
+    const tickWidth = tickPercent % 10 === 0 ? barWidth : (barWidth * 2) / 3;
+    ctx.fillRect(width, tickY - 0.5, -tickWidth, 1);
+  }
 
   // Draw target accuracy tick at exactly center right
-  const targetY = height / 2; // Exactly center vertically
+  ctx.fillStyle = "#ccc";
+  ctx.fillRect(width, targetY - 1.5, -barWidth, 3);
+
+  // Draw target accuracy number next to the tick
   ctx.fillStyle = "#858585";
-  ctx.fillRect(barX - 10, targetY - 1, barWidth + 10, 2);
+  ctx.font = "12px 'Modern Typewriter', monospace";
+  ctx.textAlign = "right";
+  ctx.fillText(
+    Math.round(targetAccuracy * 100).toString() + "%",
+    barX - 5,
+    targetY + 4,
+  );
 
-  // Draw 100% accuracy tick
-  const perfectHeight = (100 / maxAccuracy) * barHeight;
-  const perfectY = barBottomY - perfectHeight;
-  ctx.fillStyle = "#6a9955"; // Green for 100%
-  ctx.fillRect(barX - 10, perfectY - 1, barWidth + 10, 2);
-
-  // Draw current accuracy bar
+  // Draw white dial indicator for current accuracy along the edge
   const currentHeight = Math.min(
     (accuracy / maxAccuracy) * barHeight,
     barHeight,
   );
   const currentY = barBottomY - currentHeight;
-  ctx.fillStyle = "#4ec9b0";
-  ctx.fillRect(barX, currentY, barWidth, currentHeight);
 
-  // Draw accuracy text at bottom right
-  ctx.fillStyle = "#4ec9b0";
-  ctx.font = "20px 'Modern Typewriter', monospace";
-  ctx.textAlign = "right";
-  ctx.fillText(accuracy.toString() + "%", barX - 10, barBottomY - 30);
-
-  // Draw "ACC" label
-  ctx.fillStyle = "#858585";
-  ctx.font = "12px 'Modern Typewriter', monospace";
-  ctx.fillText("ACC", barX - 10, barBottomY - 15);
-
-  ctx.textAlign = "left";
-}
-
-function renderStat(ctx, x, y, label, value) {
-  ctx.fillStyle = "#858585";
-  ctx.font = "14px 'Modern Typewriter', monospace";
-  ctx.fillText(label, x, y - 20);
-
-  ctx.fillStyle = "#4ec9b0";
-  ctx.font = "24px 'Modern Typewriter', monospace";
-  ctx.fillText(value, x, y);
+  // Draw dial as a triangle pointing left
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.moveTo(barX + barWidth, currentY);
+  ctx.lineTo(barX + barWidth - 8, currentY - 5);
+  ctx.lineTo(barX - 3, currentY - 5);
+  ctx.lineTo(barX - 3, currentY + 5);
+  ctx.lineTo(barX + barWidth - 8, currentY + 5);
+  ctx.closePath();
+  ctx.fill();
 }
 
 function renderDebugLogs(ctx, width, height) {
