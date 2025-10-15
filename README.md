@@ -58,7 +58,7 @@ Typing video [youtube.com/watch?v=Ijwo7SQQ73Q](https://www.youtube.com/watch?v=I
 **Memes**:
 
 - [Mobile Text Entry Device](https://patents.google.com/patent/US20030179178A1/en) - 💩
-- [I love the powerglove.](https://www.youtube.com/watch?app=desktop&v=KZErvASwdlU)
+- [I love the powerglove.](https://www.youtube.com/watch?app=desktop&v=KZErvASwdlU) - it's so bad
 - [Johnny Mnemonic](https://www.youtube.com/watch?v=UzRjtvMQds4&t=63s) - it's even funnier when you realize it's not a parody
 
 ## Making your own keyer
