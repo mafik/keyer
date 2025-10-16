@@ -49,6 +49,9 @@ const levelUpSounds = [
 // Audio context for pitch shifting (shared across all sounds)
 let audioContext = null;
 
+// Promise cache (Map: soundPath -> Promise<AudioBuffer>)
+const audioBufferPromises = new Map();
+
 // Initialize audio context (lazily, on first use)
 function getAudioContext() {
   if (!audioContext) {
@@ -57,40 +60,84 @@ function getAudioContext() {
   return audioContext;
 }
 
+// Get or create a promise for loading a sound
+function getAudioBufferPromise(soundPath) {
+  if (!audioBufferPromises.has(soundPath)) {
+    const ctx = getAudioContext();
+    const promise = fetch(soundPath)
+      .then((response) => response.arrayBuffer())
+      .then((arrayBuffer) => ctx.decodeAudioData(arrayBuffer))
+      .catch((err) => {
+        console.warn(`Failed to load sound: ${soundPath}`, err);
+        throw err;
+      });
+    audioBufferPromises.set(soundPath, promise);
+  }
+  return audioBufferPromises.get(soundPath);
+}
+
+// Preload all sounds on page load
+function preloadSounds() {
+  console.log("Preloading sounds...");
+
+  const allSounds = [...goodSounds, ...badSounds, ...levelUpSounds];
+
+  // Create all promises (but don't wait for them)
+  allSounds.forEach((soundPath) => getAudioBufferPromise(soundPath));
+
+  // Log when all sounds are loaded (optional, doesn't block anything)
+  Promise.all(allSounds.map((path) => audioBufferPromises.get(path)))
+    .then(() => {
+      console.log(`Preloaded ${allSounds.length} sounds successfully`);
+    })
+    .catch((err) => {
+      console.error("Some sounds failed to preload:", err);
+    });
+}
+
+// Start preloading when the page loads
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", preloadSounds);
+} else {
+  preloadSounds();
+}
+
 // Helper function to play a random sound from an array
-function playRandomSound(soundArray) {
+async function playRandomSound(soundArray) {
   if (soundArray.length === 0) return;
 
   const randomIndex = Math.floor(Math.random() * soundArray.length);
   const soundPath = soundArray[randomIndex];
 
-  const audio = new Audio(soundPath);
-  audio.play().catch((err) => {
+  try {
+    const audioBuffer = await getAudioBufferPromise(soundPath);
+    const ctx = getAudioContext();
+    const source = ctx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(ctx.destination);
+    source.start(0);
+  } catch (err) {
     console.warn("Failed to play sound:", err);
-  });
+  }
 }
 
 // Helper function to play a sound with pitch shifting using Web Audio API
-function playPitchedSound(soundPath, pitchShift) {
-  const ctx = getAudioContext();
+async function playPitchedSound(soundPath, pitchShift) {
+  try {
+    const audioBuffer = await getAudioBufferPromise(soundPath);
+    const ctx = getAudioContext();
+    const source = ctx.createBufferSource();
+    source.buffer = audioBuffer;
 
-  fetch(soundPath)
-    .then((response) => response.arrayBuffer())
-    .then((arrayBuffer) => ctx.decodeAudioData(arrayBuffer))
-    .then((audioBuffer) => {
-      const source = ctx.createBufferSource();
-      source.buffer = audioBuffer;
+    // Apply pitch shift by changing playback rate
+    // pitchShift is in semitones: rate = 2^(semitones/12)
+    source.playbackRate.value = Math.pow(2, pitchShift / 12);
 
-      // Apply pitch shift by changing playback rate
-      // pitchShift is in semitones: rate = 2^(semitones/12)
-      source.playbackRate.value = Math.pow(2, pitchShift / 12);
-
-      source.connect(ctx.destination);
-      source.start(0);
-    })
-    .catch((err) => {
-      console.warn("Failed to play pitched sound:", err);
-    });
+    source.connect(ctx.destination);
+    source.start(0);
+  } catch (err) {
+    console.warn("Failed to play pitched sound:", err);
+  }
 }
 
 // Play a random "good" sound (correct key press) with pitch based on WPM
