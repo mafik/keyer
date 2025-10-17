@@ -1,4 +1,5 @@
 #include "BleKeyboard.h"
+#include "esp_gap_ble_api.h"
 #include "esp_pm.h"
 #include "esp_sleep.h"
 #include "esp_timer.h"
@@ -480,6 +481,24 @@ void OnChordAutostart() {
   }
 }
 
+// See
+// https://academy.nordicsemi.com/courses/bluetooth-low-energy-fundamentals/lessons/lesson-3-bluetooth-le-connections/topic/connection-parameters/
+void SetupConnectionParameters(esp_bd_addr_t addr) {
+  esp_ble_conn_update_params_t conn_params = {
+      .bda = {addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]},
+      .min_int = 30 * 4 / 5, // 30ms in 1.25ms units
+      .max_int = 50 * 4 / 5, // 50ms in 1.25ms units
+      .latency = 0,
+      .timeout = 6000 / 10, // 6s in 10ms units
+  };
+  esp_err_t ret = esp_ble_gap_update_conn_params(&conn_params);
+  if (ret != ESP_OK) {
+    DebugPrintf("DEBUG: Failed to update connection parameters: %d\n", ret);
+  } else {
+    DebugPrintf("DEBUG: connection parameters changed successfully\n");
+  }
+}
+
 struct BleKeyboardSecurityCallbacks : public BLESecurityCallbacks {
   bool pass_key_collecting = false;
   String pass_key_buffer = "";
@@ -534,6 +553,7 @@ struct BleKeyboardSecurityCallbacks : public BLESecurityCallbacks {
     DebugPrintf("DEBUG: onAuthenticationComplete called\n");
     if (cmpl.success) {
       DebugPrintf("DEBUG: Pairing successful!\n");
+      SetupConnectionParameters(cmpl.bd_addr);
     } else {
       DebugPrintf("DEBUG: Pairing failed, reason: %d\n", cmpl.fail_reason);
     }
