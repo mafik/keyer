@@ -161,6 +161,25 @@ function initRender() {
   });
 }
 
+// Action images (1.webp, 2.webp, 3.webp)
+let actionImages = {};
+let imagesLoaded = false;
+
+loadImage("1.webp", "1");
+loadImage("2.webp", "2");
+loadImage("3.webp", "3");
+
+function loadImage(src, key) {
+  actionImages[key] = new Image();
+  actionImages[key].onload = () => {
+    if (ctx) render();
+  };
+  actionImages[key].onerror = (error) => {
+    console.error(`Failed to load action image: ${src}`, error);
+  };
+  actionImages[key].src = src;
+}
+
 function resizeCanvas() {
   const dpr = window.devicePixelRatio || 1;
   const width = window.innerWidth;
@@ -415,7 +434,6 @@ function renderChordGrid(ctx, width) {
 
     // Determine color based on position
     let fillColor;
-    let strokeColor;
     if (i === newIndex) {
       fillColor = "#4ec9b0"; // Cyan for NEW
     } else if (i === oldIndex && oldIndex !== newIndex) {
@@ -438,8 +456,6 @@ function renderChordGrid(ctx, width) {
         renderAction(ctx, x, y + circleRadius, position, {
           height: circleRadius * 2,
           fill: fillColor,
-          strokeWidth: 2,
-          strokeColor: "#3e3e42",
         });
       }
     }
@@ -676,42 +692,28 @@ function drawBarrel(ctx, x, y, width, height, rotation) {
   ctx.restore();
 }
 
-// Renders an outlined action letter (1, 2, or 3) at the given position
+// Renders an action image (1, 2, or 3) at the given position
 // x, y: center position in canvas coordinates
 // action: single-digit string ("1", "2", or "3")
 // options: { width?: number, height?: number, fill?: string }
-//   - width: desired width in pixels (total width including stroke) - uses measureText
-//   - height: desired height in pixels - scales font size directly
+//   - width: desired width in pixels
+//   - height: desired height in pixels
 //   - must specify exactly one of width or height
-//   - fill: fill color (default: "bright key color")
+//   - fill: tint color (default: "bright key color")
 function renderAction(ctx, x, y, action, options) {
-  let fontSize;
-  let strokeWidth;
+  const img = actionImages[action];
+  const imgAspectRatio = img.width / img.height;
+
+  let renderWidth, renderHeight;
 
   if (options.height !== undefined) {
-    // Height-based: scale font size directly
-    fontSize = options.height;
-    if (options.strokeWidth !== undefined) {
-      strokeWidth = options.strokeWidth;
-    } else {
-      strokeWidth = fontSize * 0.2;
-    }
+    // Height-based: calculate width from aspect ratio
+    renderHeight = options.height;
+    renderWidth = renderHeight * imgAspectRatio;
   } else if (options.width !== undefined) {
-    // Width-based: use measureText
-    const width = options.width;
-
-    const baseFontSize = 20;
-    ctx.font = `${baseFontSize}px 'Bunker Stencil', monospace`;
-    const baseMetrics = ctx.measureText(action);
-    const baseWidth = baseMetrics.width;
-
-    if (options.strokeWidth !== undefined) {
-      strokeWidth = options.strokeWidth;
-    } else {
-      strokeWidth = width * 0.2;
-    }
-    const targetTextWidth = width - strokeWidth;
-    fontSize = (targetTextWidth / baseWidth) * baseFontSize;
+    // Width-based: calculate height from aspect ratio
+    renderWidth = options.width;
+    renderHeight = renderWidth / imgAspectRatio;
   } else {
     throw new Error("renderAction: must specify either width or height");
   }
@@ -719,21 +721,16 @@ function renderAction(ctx, x, y, action, options) {
   const fillColor =
     options.fill || setLightness(getKeyColor(action, false), 0.8);
 
-  const strokeColor = options.strokeColor || getKeyColor(action, true);
+  // Draw the image centered at x, y (where y is bottom baseline)
+  const drawX = x - renderWidth / 2;
+  const drawY = y - renderHeight;
 
-  ctx.font = `${fontSize}px 'Bunker Stencil', monospace`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "bottom";
+  ctx.save();
 
-  if (strokeWidth) {
-    ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = strokeWidth;
-    ctx.strokeText(action, x, y);
-  }
+  // Simple approach: just draw the image without tinting for now
+  ctx.drawImage(img, drawX, drawY, renderWidth, renderHeight);
 
-  // Draw fill
-  ctx.fillStyle = fillColor;
-  ctx.fillText(action, x, y);
+  ctx.restore();
 }
 
 function renderFingerplan(ctx, width, height) {
