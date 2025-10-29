@@ -52,7 +52,8 @@ var layout = {
   z: "22010",
 };
 
-var learning_sequence = "fingerwalkcombtsqdhjpuvxyz";
+var default_learning_sequence = "fingerwalkcombtsqdhjpuvxyz";
+var learning_sequence = localStorage.learning_sequence || default_learning_sequence;
 
 // Press costs used to determine cheapest finger for re-press scenario
 // Indexed by [finger][button_position]

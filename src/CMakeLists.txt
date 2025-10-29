@@ -1,1 +1,15 @@
-idf_component_register(SRCS "ChordKeyboard.cpp" "BleKeyboard.cpp")
+idf_component_register(SRCS
+    "app.cpp"
+    "app_keyboard.cpp"
+    "app_terminal.cpp"
+    "BleKeyboard.cpp"
+    "eye_term.cpp"
+    "g1.cpp"
+    "esp32_bluetooth.cpp"
+    "common_esp32.cpp"
+    "main_loop.cpp"
+    "secrets.cpp"
+    "ssh.cpp"
+    "keyer.cpp"
+    "keyboard.cpp"
+)

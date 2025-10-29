@@ -1,0 +1,6 @@
+- built-in typing guide
+- switch to WiFiMulti (cooler)
+- investigate & fix the SSH latency
+  - Note: it seems that WiFi is actually pretty fast, latency must be caused by the glasses
+- make the glass connection on startup much faster
+  - Note: this is mostly done now but there is still ~4.5s delay after connection is opened but before glasses send UPDATE_CONN_PARAMS. It might be solved by extracting the min/max connection interval from the BLE advertisment (which would require scanning) and trying to connect with these params.
