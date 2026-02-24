@@ -25,6 +25,14 @@
                 font-style: normal;
             }
 
+            @font-face {
+                font-family: "Special Elite";
+                src: url("special_elite/SpecialElite-Regular.ttf")
+                    format("truetype");
+                font-weight: normal;
+                font-style: normal;
+            }
+
             * {
                 margin: 0;
                 padding: 0;
@@ -52,7 +60,14 @@
         <canvas id="canvas"></canvas>
 
         <script src="layout.js"></script>
-        <script src="words_dictionary.js"></script>
+        <script>
+            (function () {
+                var lang = (navigator.language || "en").split("-")[0].toLowerCase();
+                var map = { en: "en", es: "es", de: "de", fr: "fr", pt: "pt", pl: "pl" };
+                var code = map[lang] || "en";
+                document.write('<script src="words_' + code + '.js"><\/script>');
+            })();
+        </script>
         <script src="state.js"></script>
         <script src="word_picker.js"></script>
         <script src="sound.js"></script>

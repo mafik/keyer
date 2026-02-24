@@ -29,6 +29,13 @@ for (let i = 0; i <= maxLevel(); i++) {
   studyLists[i] = [];
 }
 
+// Save display words before the loop overwrites values with levels
+let displayWords = {};
+for (let word in wordsDictionary) {
+  let val = wordsDictionary[word];
+  displayWords[word] = (typeof val === "string") ? val : word;
+}
+
 for (let word in wordsDictionary) {
   let wordLevel = -1;
   for (let i = 1; i < word.length; i++) {

@@ -15,7 +15,8 @@ let statsHistory = initialStatsHistory(); // Array of {correct: boolean, time: n
 let lastCharTime = null;
 
 // Current exercise state (ephemeral - resets each exercise)
-let targetText = "";
+let targetText = "";   // keystroke sequence (a-z + spaces) — what the user must type
+let displayText = "";  // native display text — what is shown on screen
 let typedText = "";
 
 // Initialize
@@ -116,10 +117,11 @@ function handleKeyPress(key) {
   const now = Date.now();
 
   const expectedChar = targetText[typedText.length];
-  const correct = key === expectedChar;
+  const expectedDisplay = displayText[typedText.length];
+  const correct = key === expectedChar || key === expectedDisplay;
 
   if (correct) {
-    typedText += key;
+    typedText += expectedChar;
     // Pass current WPM to playGood for pitch shifting
     const currentWPM = getCurrentWPM();
     playGood(currentWPM);
@@ -196,6 +198,7 @@ function generateExercise() {
   if (oldIndex == -1) {
     const repeatCount = 7;
     targetText = learning_sequence[newIndex].repeat(repeatCount);
+    displayText = targetText;
   } else {
     const newChar = learning_sequence[newIndex];
     const oldChar = learning_sequence[oldIndex];
@@ -207,10 +210,12 @@ function generateExercise() {
         text += newChar + oldChar;
       }
       targetText = text;
+      displayText = targetText;
     } else {
       // Random words using known characters and NEW/OLD transitions
       const words = pickWordsForPractice(3);
       targetText = words.join(" ");
+      displayText = words.map((w) => displayWords[w] || w).join(" ");
     }
   }
 

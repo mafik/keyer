@@ -468,12 +468,13 @@ function renderTextArea(ctx, width, height) {
   const baseFontSize = 48;
   const maxWidth = width - 120; // Leave margin on both sides
 
-  // Set initial font to measure text
-  ctx.font = `${baseFontSize}px 'Zrnic'`;
+  // Set font for measurement
+  ctx.font = `${baseFontSize}px 'Special Elite'`;
 
-  // Measure the actual width of the text
-  const displayText = targetText.replace(/ /g, "␣");
-  const textMetrics = ctx.measureText(displayText);
+  // Use the global displayText (native chars) for visual rendering;
+  // targetText (a-z) is used only for keystroke comparison.
+  const visualText = displayText.replace(/ /g, "␣");
+  const textMetrics = ctx.measureText(visualText);
   const requiredWidth = textMetrics.width;
 
   // Calculate scale if text is too wide
@@ -483,14 +484,14 @@ function renderTextArea(ctx, width, height) {
   }
 
   const fontSize = baseFontSize * scale;
-  ctx.font = `${fontSize}px 'Modern Typewriter'`;
+  ctx.font = `${fontSize}px 'Special Elite'`;
 
   // Measure all prefix widths for proper positioning (non-monospace)
-  // Array will be length displayText.length + 1
-  // measuredWidths[0] = 0, measuredWidths[i] = width of displayText[0..i-1]
+  // Array will be length visualText.length + 1
+  // measuredWidths[0] = 0, measuredWidths[i] = width of visualText[0..i-1]
   const measuredWidths = [0];
-  for (let i = 1; i <= displayText.length; i++) {
-    const prefix = displayText.substring(0, i);
+  for (let i = 1; i <= visualText.length; i++) {
+    const prefix = visualText.substring(0, i);
     const prefixWidth = ctx.measureText(prefix).width;
     measuredWidths.push(prefixWidth);
   }
@@ -498,7 +499,7 @@ function renderTextArea(ctx, width, height) {
   const startY = height / 2 + 24 * scale;
 
   // Calculate text positioning
-  const totalWidth = measuredWidths[displayText.length];
+  const totalWidth = measuredWidths[visualText.length];
   const startX = width / 2 - totalWidth / 2;
 
   // Draw radar display background
@@ -551,7 +552,8 @@ function renderTextArea(ctx, width, height) {
 
   // Render each character with green radar display colors
   for (let i = 0; i < targetText.length; i++) {
-    const char = targetText[i];
+    const char = targetText[i];      // keystroke char — used for comparison
+    const displayChar = visualText[i] || char;  // native char — shown to user
     const x = startX + measuredWidths[i];
 
     if (i < typedText.length) {
@@ -600,7 +602,7 @@ function renderTextArea(ctx, width, height) {
     ctx.save();
     ctx.shadowColor = "rgba(0, 255, 100, 0.5)";
     ctx.shadowBlur = 3;
-    ctx.fillText(char === " " ? "␣" : char, x, startY);
+    ctx.fillText(displayChar === " " ? "␣" : displayChar, x, startY);
     ctx.restore();
   }
 }
