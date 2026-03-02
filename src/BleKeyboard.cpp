@@ -494,6 +494,10 @@ void BleKeyboard::onConnect(BLEServer *pServer) {
 #if defined(USE_NIMBLE)
   // Stop advertising so no other device can connect while we're connected
   advertising->stop();
+  // Request connection parameters tolerant of brief packet loss:
+  //   interval 7.5–20ms, latency 4 (can skip 4 events = up to 80ms silence),
+  //   supervision timeout 2s (must be > (1+latency)*maxInterval*2 = 200ms)
+  pServer->updateConnParams(pServer->getPeerInfo(0).getConnHandle(), 6, 16, 4, 200);
 #else
 
   BLE2902 *desc = (BLE2902 *)this->inputKeyboard->getDescriptorByUUID(
