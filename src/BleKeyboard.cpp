@@ -16,6 +16,9 @@
 #include "HIDTypes.h"
 #include "sdkconfig.h"
 #include <driver/adc.h>
+#include <esp_pm.h>
+
+static esp_pm_lock_handle_t s_pm_lock = nullptr;
 
 #if defined(CONFIG_ARDUHAL_ESP_LOG)
 #include "esp32-hal-log.h"
@@ -147,6 +150,8 @@ void BleKeyboard::begin(void) {
   advertising->setScanResponse(false);
   advertising->start();
   hid->setBatteryLevel(batteryLevel);
+
+  esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "ble_connected", &s_pm_lock);
 
   ESP_LOGD(LOG_TAG, "Advertising started!");
 }
@@ -489,6 +494,7 @@ void BleKeyboard::onConnect(BLEServer *pServer) {
   Debugf("Connected to %s\n",
          pServer->getPeerInfo(0).getAddress().toString().c_str());
   this->connected = true;
+  esp_pm_lock_acquire(s_pm_lock);
   pServer->advertiseOnDisconnect(true);
 
 #if defined(USE_NIMBLE)
@@ -513,6 +519,7 @@ void BleKeyboard::onConnect(BLEServer *pServer) {
 void BleKeyboard::onDisconnect(BLEServer *pServer) {
   Debugf("Disconnected\n");
   this->connected = false;
+  esp_pm_lock_release(s_pm_lock);
 
 #if !defined(USE_NIMBLE)
 
