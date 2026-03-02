@@ -1,5 +1,6 @@
 CompileFlags:
   Add:
+    - "-I/home/maf/Pulpit/Keyer/.pio/libdeps/EyeTerm/NimBLE-Arduino/src"
     - "-I/home/maf/.platformio/packages/toolchain-xtensa-esp32s3/xtensa-esp32s3-elf/include/c++/8.4.0"
     - "-I/home/maf/.platformio/packages/toolchain-xtensa-esp32s3/xtensa-esp32s3-elf/include/c++/8.4.0/xtensa-esp32s3-elf"
     - "-I/home/maf/.platformio/packages/toolchain-xtensa-esp32s3/xtensa-esp32s3-elf/include"
