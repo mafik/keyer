@@ -167,13 +167,30 @@ struct WriteUnicodeAction : Action {
   WriteUnicodeAction(uint32_t unichar, Action *next = nullptr)
       : Action(next), codepoint(unichar) {}
   void OnStart() override {
-    Debugf("unicode %d", codepoint);
-    uint32_t effective_codepoint = codepoint;
-    if (ogonek) {
-      effective_codepoint = GetOgonek(effective_codepoint);
-    }
     Modifier modifiers = temp_modifiers | held_modifiers;
-    current_app->OnUnicode(effective_codepoint, modifiers);
+    if (ogonek) {
+      IBM_Key fkey = IBM_Key::NONE;
+      if (codepoint >= '1' && codepoint <= '9') {
+        fkey = static_cast<IBM_Key>(static_cast<int>(IBM_Key::F1) +
+                                    (codepoint - '1'));
+      } else if (codepoint == '0') {
+        fkey = IBM_Key::F10;
+      } else if (codepoint == '-') {
+        fkey = IBM_Key::F11;
+      } else if (codepoint == '=') {
+        fkey = IBM_Key::F12;
+      }
+      if (fkey != IBM_Key::NONE) {
+        Debugf("key %s", ToStr(fkey));
+        current_app->OnKey(fkey, modifiers);
+      } else {
+        Debugf("unicode %d (ogonek)", codepoint);
+        current_app->OnUnicode(GetOgonek(codepoint), modifiers);
+      }
+    } else {
+      Debugf("unicode %d", codepoint);
+      current_app->OnUnicode(codepoint, modifiers);
+    }
   }
   void OnStop() override { ReleaseTempModifiers(); }
 };
@@ -329,7 +346,7 @@ void OnButtonDown(Button i) {
     if (esp_timer_is_active(chord_autostart_timer)) {
       esp_timer_stop(chord_autostart_timer);
     }
-    Debugf("Unique action!\n");
+    Debugln("Unique action!");
     active_button_actions[i] = unique_action;
     unique_action->Start();
   } else {

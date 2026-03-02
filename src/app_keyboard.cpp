@@ -140,6 +140,20 @@ void AppKeyboard::OnKey(IBM_Key key, Modifier mods) {
   case IBM_Key::INSERT:
     keycode = 0x49;
     break;
+  case IBM_Key::F1:
+  case IBM_Key::F2:
+  case IBM_Key::F3:
+  case IBM_Key::F4:
+  case IBM_Key::F5:
+  case IBM_Key::F6:
+  case IBM_Key::F7:
+  case IBM_Key::F8:
+  case IBM_Key::F9:
+  case IBM_Key::F10:
+  case IBM_Key::F11:
+  case IBM_Key::F12:
+    keycode = 0x3A + (static_cast<int>(key) - static_cast<int>(IBM_Key::F1));
+    break;
   default:
     return;
   }

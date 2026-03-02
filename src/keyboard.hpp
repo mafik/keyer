@@ -11,6 +11,7 @@ constexpr Modifier MOD_SHIFT = 1, MOD_ALT = 2, MOD_CTRL = 4, MOD_SUPER = 8,
                    MOD_RIGHT_ALT = 16;
 
 enum class IBM_Key {
+  NONE,
   ESC,
   F1,
   F2,
