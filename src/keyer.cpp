@@ -124,11 +124,7 @@ FingerPosition Little() {
 Modifier temp_modifiers, held_modifiers;
 
 bool ogonek = false;
-
-void ReleaseTempModifiers() {
-  temp_modifiers = 0;
-  ogonek = false;
-}
+bool modifiers_consumed = false;
 
 uint32_t GetOgonek(uint32_t codepoint) {
   switch (codepoint) {
@@ -144,7 +140,7 @@ uint32_t GetOgonek(uint32_t codepoint) {
     return U'ś';
   case 'z':
     return U'ż';
-  case 'v':
+  case 'x':
     return U'ź';
   case 'a':
     return U'ą';
@@ -168,6 +164,7 @@ struct WriteUnicodeAction : Action {
       : Action(next), codepoint(unichar) {}
   void OnStart() override {
     Modifier modifiers = temp_modifiers | held_modifiers;
+    modifiers_consumed = true;
     if (ogonek) {
       IBM_Key fkey = IBM_Key::NONE;
       if (codepoint >= '1' && codepoint <= '9') {
@@ -192,7 +189,7 @@ struct WriteUnicodeAction : Action {
       current_app->OnUnicode(codepoint, modifiers);
     }
   }
-  void OnStop() override { ReleaseTempModifiers(); }
+  void OnStop() override {}
 };
 
 struct WriteIBM_KeyAction : Action {
@@ -202,9 +199,10 @@ struct WriteIBM_KeyAction : Action {
   void OnStart() override {
     Debugf("ibm_key %s", ToStr(key));
     Modifier modifiers = temp_modifiers | held_modifiers;
+    modifiers_consumed = true;
     current_app->OnKey(key, modifiers);
   }
-  void OnStop() override { ReleaseTempModifiers(); }
+  void OnStop() override {}
 };
 
 // A modifier that affects the next key press.
@@ -414,6 +412,11 @@ void OnButtonUp(Button i) {
   bool all_buttons_up = !any_button_down;
   if (all_buttons_up) {
     arpeggio_state = STATE_READY;
+    if (modifiers_consumed) {
+      temp_modifiers = 0;
+      ogonek = false;
+      modifiers_consumed = false;
+    }
   }
 }
 

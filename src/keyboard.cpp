@@ -238,16 +238,26 @@ const char *ToStr(IBM_Key key) {
 
 char GetOgonekBase(uint32_t codepoint) {
   switch (codepoint) {
-  case U'ć': return 'c';
-  case U'ł': return 'l';
-  case U'ń': return 'n';
-  case U'ó': return 'o';
-  case U'ś': return 's';
-  case U'ż': return 'z';
-  case U'ź': return 'v';
-  case U'ą': return 'a';
-  case U'ę': return 'e';
-  default:   return 0;
+  case U'ć':
+    return 'c';
+  case U'ł':
+    return 'l';
+  case U'ń':
+    return 'n';
+  case U'ó':
+    return 'o';
+  case U'ś':
+    return 's';
+  case U'ż':
+    return 'z';
+  case U'ź':
+    return 'x';
+  case U'ą':
+    return 'a';
+  case U'ę':
+    return 'e';
+  default:
+    return 0;
   }
 }
 
