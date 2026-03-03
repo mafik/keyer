@@ -13,7 +13,7 @@ struct App {
   virtual void OnLoop() = 0;
   virtual void OnUnicode(uint32_t codepoint, Modifier mods) = 0;
   virtual void OnKey(IBM_Key key, Modifier mods) = 0;
-  virtual void OnBattery(int percent) { Debugf("battery: %d", percent); }
+  virtual void OnBattery(int percent) {}
   virtual void ShowText(string_view text) {}
   virtual ~App() = default;
 
