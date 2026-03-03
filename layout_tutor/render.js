@@ -289,7 +289,8 @@ function render() {
   renderTachometer(ctx, scale);
 
   // Render fingerplan
-  renderFingerplan(ctx, width, height);
+  if (!localStorage.getItem("no_fingerplan"))
+    renderFingerplan(ctx, width, height);
 
   // Render main text area
   renderTextArea(ctx, width, height);
@@ -586,9 +587,11 @@ function renderTextArea(ctx, width, height) {
         ctx.beginPath();
         ctx.moveTo(x, startY - overlineOffset);
         ctx.lineTo(x + twoCharWidth, startY - overlineOffset);
-        ctx.moveTo(x + twoCharWidth / 2, startY - overlineOffset);
-        ctx.lineTo(x + twoCharWidth / 2, height * 0.4);
-        ctx.lineTo(width * 0.2, height * 0.4);
+        if (!localStorage.getItem("no_fingerplan")) {
+          ctx.moveTo(x + twoCharWidth / 2, startY - overlineOffset);
+          ctx.lineTo(x + twoCharWidth / 2, height * 0.4);
+          ctx.lineTo(width * 0.2, height * 0.4);
+        }
         // ctx.lineTo(100, startY - overlineOffset);
         ctx.stroke();
         ctx.restore();
