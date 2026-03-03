@@ -43,6 +43,18 @@ void setup() {
   InitKeyer();
   current_app = App::Load();
   current_app->OnSetup();
+
+  const char *reset_reasons[] = {
+      "UNKNOWN",       "POWERON",    "EXT",       "SW",
+      "PANIC",         "INT_WDT",    "TASK_WDT",  "WDT",
+      "DEEPSLEEP",     "BROWNOUT",   "SDIO",      "USB",
+      "JTAG",          "EFUSE",      "PWR_GLITCH", "CPU_LOCKUP",
+  };
+  auto reason = esp_reset_reason();
+  Debugf("Reset reason: %d (%s)\n", reason,
+         reason < sizeof(reset_reasons) / sizeof(reset_reasons[0])
+             ? reset_reasons[reason]
+             : "?");
 }
 
 void loop() {
