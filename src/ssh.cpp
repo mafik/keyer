@@ -1,5 +1,6 @@
 #include "ssh.hpp"
 
+#include <esp_pm.h>
 #include <libssh/libssh.h>
 #include <vterm.h>
 
@@ -135,8 +136,13 @@ reconnect:
   long nodelay = 1;
   ssh_options_set(ssh_sess, SSH_OPTIONS_NODELAY, &nodelay);
 
-  int verbosity = SSH_LOG_DEBUG;
+  int verbosity = kDebug ? SSH_LOG_INFO : SSH_LOG_NONE;
   ssh_options_set(ssh_sess, SSH_OPTIONS_LOG_VERBOSITY, &verbosity);
+
+  // Temporarily raise CPU frequency for crypto-heavy operations
+  esp_pm_lock_handle_t pm_lock;
+  esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "ssh", &pm_lock);
+  esp_pm_lock_acquire(pm_lock);
 
   DEBUG_LN("SSH: Connecting...");
   if (ssh_connect(ssh_sess) != SSH_OK) {
@@ -216,6 +222,9 @@ reconnect:
   vterm_screen_set_callbacks(vterm_screen, &vterm_callbacks, NULL);
   vterm_screen_reset(vterm_screen, 1);
 
+  esp_pm_lock_release(pm_lock);
+  esp_pm_lock_delete(pm_lock);
+
   // Main SSH read loop
   char buffer[4096];
   while (ssh_connected) {
@@ -242,7 +251,8 @@ reconnect:
         vterm_dirty = false;
         string display = GetVTermDisplay();
         atmt::RunOnMain([display = std::move(display)]() {
-          if (current_app) current_app->ShowText(display);
+          if (current_app)
+            current_app->ShowText(display);
         });
       }
     } else if (nbytes < 0) {
@@ -292,12 +302,13 @@ void OnNetworkConnectedSSH() {
   if (ssh_task_handle) {
     // ssh task already running
   } else {
-    xTaskCreate(SSH_Loop,        // Task function
-                "SSH",           // Task name (for debugging)
-                32 * 1024,       // Stack size in BYTES (not words!)
-                NULL,            // Parameters passed to task
-                5,               // Priority (0-configMAX_PRIORITIES-1)
-                &ssh_task_handle // Task handle (can be NULL)
+    xTaskCreatePinnedToCore(SSH_Loop,  // Task function
+                            "SSH",     // Task name (for debugging)
+                            32 * 1024, // Stack size in BYTES (not words!)
+                            NULL,      // Parameters passed to task
+                            5,         // Priority (0-configMAX_PRIORITIES-1)
+                            &ssh_task_handle, // Task handle (can be NULL)
+                            1 // Core 1 (away from WiFi/BLE on Core 0)
     );
   }
 }
