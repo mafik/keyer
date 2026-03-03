@@ -258,7 +258,7 @@ void AppTerminal::OnLoop() {
     break;
   }
 
-  delay(1);
+  vTaskDelay(pdMS_TO_TICKS(1));
 }
 
 void AppTerminal::OnUnicode(uint32_t codepoint, Modifier mods) {

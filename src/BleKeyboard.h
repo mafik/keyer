@@ -175,6 +175,7 @@ protected:
   virtual void onStarted(BLEServer *pServer) { };
   virtual void onConnect(BLEServer* pServer) override;
   virtual void onDisconnect(BLEServer* pServer) override;
+  virtual void onDisconnect(BLEServer* pServer, ble_gap_conn_desc* desc) override;
   virtual void onWrite(BLECharacteristic* me) override;
 
 };

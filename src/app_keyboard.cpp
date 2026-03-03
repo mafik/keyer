@@ -43,7 +43,7 @@ void AppKeyboard::OnSetup() {
   }
 }
 
-void AppKeyboard::OnLoop() { delay(1); }
+void AppKeyboard::OnLoop() { vTaskDelay(pdMS_TO_TICKS(1)); }
 
 void AppKeyboard::OnUnicode(uint32_t codepoint, Modifier mods) {
   if (!keyboard_.isConnected())

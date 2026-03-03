@@ -503,7 +503,8 @@ void BleKeyboard::onConnect(BLEServer *pServer) {
   // Request connection parameters tolerant of brief packet loss:
   //   interval 7.5–20ms, latency 4 (can skip 4 events = up to 80ms silence),
   //   supervision timeout 2s (must be > (1+latency)*maxInterval*2 = 200ms)
-  pServer->updateConnParams(pServer->getPeerInfo(0).getConnHandle(), 6, 16, 4, 200);
+  pServer->updateConnParams(pServer->getPeerInfo(0).getConnHandle(), 6, 16, 4,
+                            200);
 #else
 
   BLE2902 *desc = (BLE2902 *)this->inputKeyboard->getDescriptorByUUID(
@@ -517,18 +518,35 @@ void BleKeyboard::onConnect(BLEServer *pServer) {
 }
 
 void BleKeyboard::onDisconnect(BLEServer *pServer) {
-  Debugf("Disconnected\n");
   this->connected = false;
   esp_pm_lock_release(s_pm_lock);
+}
+
+void BleKeyboard::onDisconnect(BLEServer *pServer, ble_gap_conn_desc *desc) {
+  // reason sits right before conn in ble_gap_event::disconnect
+  int reason = reinterpret_cast<int *>(desc)[-1];
+  Debugf("Disconnected: reason=0x%x (%d)\n", reason, reason);
+  Debugf("  peer_id_addr=%02x:%02x:%02x:%02x:%02x:%02x (type=%d)\n",
+         desc->peer_id_addr.val[5], desc->peer_id_addr.val[4],
+         desc->peer_id_addr.val[3], desc->peer_id_addr.val[2],
+         desc->peer_id_addr.val[1], desc->peer_id_addr.val[0],
+         desc->peer_id_addr.type);
+  Debugf(
+      "  conn_handle=%d conn_itvl=%d conn_latency=%d supervision_timeout=%d\n",
+      desc->conn_handle, desc->conn_itvl, desc->conn_latency,
+      desc->supervision_timeout);
+  Debugf("  encrypted=%d authenticated=%d bonded=%d\n",
+         desc->sec_state.encrypted, desc->sec_state.authenticated,
+         desc->sec_state.bonded);
 
 #if !defined(USE_NIMBLE)
 
-  BLE2902 *desc = (BLE2902 *)this->inputKeyboard->getDescriptorByUUID(
+  BLE2902 *desc2 = (BLE2902 *)this->inputKeyboard->getDescriptorByUUID(
       BLEUUID((uint16_t)0x2902));
-  desc->setNotifications(false);
-  desc = (BLE2902 *)this->inputMediaKeys->getDescriptorByUUID(
+  desc2->setNotifications(false);
+  desc2 = (BLE2902 *)this->inputMediaKeys->getDescriptorByUUID(
       BLEUUID((uint16_t)0x2902));
-  desc->setNotifications(false);
+  desc2->setNotifications(false);
 
   advertising->start();
 
@@ -542,14 +560,5 @@ void BleKeyboard::onWrite(BLECharacteristic *me) {
 }
 
 void BleKeyboard::delay_ms(uint64_t ms) {
-  uint64_t m = esp_timer_get_time();
-  if (ms) {
-    uint64_t e = (m + (ms * 1000));
-    if (m > e) { // overflow
-      while (esp_timer_get_time() > e) {
-      }
-    }
-    while (esp_timer_get_time() < e) {
-    }
-  }
+  vTaskDelay(pdMS_TO_TICKS(ms));
 }
