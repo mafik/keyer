@@ -8,6 +8,8 @@ namespace atmt {
 
 bool debug_line_start = true;
 
+std::mutex serial_mtx;
+
 static void ReadBattery(void *) {
   int rawValue = analogRead(BATTERY_PIN);
   float voltage = (rawValue * 4.187) / 2441.0; // measured with a multimeter

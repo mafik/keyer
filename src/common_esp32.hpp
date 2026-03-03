@@ -4,6 +4,7 @@
 #include <Arduino.h>           // IWYU pragma: export
 #include <WiFi.h>              // IWYU pragma: export
 #include <freertos/FreeRTOS.h> // IWYU pragma: export
+#include <mutex>
 
 #include "common.hpp" // IWYU pragma: export
 
@@ -17,6 +18,8 @@ constexpr bool kDebug = true;
 
 extern bool debug_line_start;
 
+extern std::mutex serial_mtx;
+
 inline void _AdjustDebugLineStart(char c) { debug_line_start = c == '\n'; }
 inline void _AdjustDebugLineStart(const char *c) {
   _AdjustDebugLineStart(c[strlen(c) - 1]);
@@ -26,9 +29,11 @@ template <typename... Args> void Debugf(const char *format, Args... args) {
   if constexpr (kDebug) {
     if (!Serial.isConnected())
       return;
+    auto guard = std::lock_guard(serial_mtx);
     if (debug_line_start) {
       auto millis = esp_timer_get_time() / 1000;
-      Serial.printf("%d| %3lld.%03lld ", xPortGetCoreID(), millis / 1000, millis % 1000);
+      Serial.printf("%d| %3lld.%03lld ", xPortGetCoreID(), millis / 1000,
+                    millis % 1000);
     }
     Serial.printf(format, args...);
     _AdjustDebugLineStart(format);
@@ -41,9 +46,11 @@ inline void Debugln(const char *line) {
   if constexpr (kDebug) {
     if (!Serial.isConnected())
       return;
+    auto guard = std::lock_guard(serial_mtx);
     if (debug_line_start) {
       auto millis = esp_timer_get_time() / 1000;
-      Serial.printf("%d| %3lld.%03lld ", xPortGetCoreID(), millis / 1000, millis % 1000);
+      Serial.printf("%d| %3lld.%03lld ", xPortGetCoreID(), millis / 1000,
+                    millis % 1000);
     }
     Serial.println(line);
     debug_line_start = true;
@@ -54,9 +61,11 @@ template <typename T> inline void Debug(T x) {
   if constexpr (kDebug) {
     if (!Serial.isConnected())
       return;
+    auto guard = std::lock_guard(serial_mtx);
     if (debug_line_start) {
       auto millis = esp_timer_get_time() / 1000;
-      Serial.printf("%d| %3lld.%03lld ", xPortGetCoreID(), millis / 1000, millis % 1000);
+      Serial.printf("%d| %3lld.%03lld ", xPortGetCoreID(), millis / 1000,
+                    millis % 1000);
     }
     Serial.print(x);
     _AdjustDebugLineStart(x);
