@@ -19,6 +19,7 @@
 #include <nvs_flash.h>
 #include <services/gap/ble_svc_gap.h>
 #include <services/gatt/ble_svc_gatt.h>
+#include <store/config/ble_store_config.h>
 
 namespace atmt {
 
@@ -26,10 +27,6 @@ static void ble_host_task(void *param) {
   nimble_port_run(); // This function will return only when nimble_port_stop()
                      // is executed.
   nimble_port_freertos_deinit();
-}
-
-template <typename... Args> void MainDebugf(const char *format, Args... args) {
-  RunOnMain([=]() { Debugf(format, args...); });
 }
 
 std::mutex ble_mutex;
@@ -174,16 +171,14 @@ ESP32Bluetooth::ESP32Bluetooth(Callbacks &callbacks)
   // TODO: Initialize the required NimBLE host configuration parameters and
   // callbacks
   ble_hs_cfg.gatts_register_cb = [](ble_gatt_register_ctxt *ctx, void *arg) {
-    MainDebugf("gatts_register_cb()\n");
+    Debugln("gatts_register_cb()");
   };
 
-  ble_hs_cfg.reset_cb = [](int reason) {
-    MainDebugf("reset_cb(%d)\n", reason);
-  };
+  ble_hs_cfg.reset_cb = [](int reason) { Debugf("reset_cb(%d)\n", reason); };
 
   ble_hs_cfg.sync_cb = []() {
     if (int err = ble_hs_util_ensure_addr(0)) {
-      MainDebugf("ble_hs_util_ensure_addr() => %s\n", BleErrToStr(err));
+      Debugf("ble_hs_util_ensure_addr() => %s\n", BleErrToStr(err));
     }
     {
       std::unique_lock lk(ble_mutex);
@@ -200,7 +195,7 @@ ESP32Bluetooth::ESP32Bluetooth(Callbacks &callbacks)
     if (event->event_code == BLE_STORE_EVENT_FULL) {
       return 0;
     }
-    MainDebugf("store_status_cb(%d)\n", event->event_code);
+    Debugf("store_status_cb(%d)\n", event->event_code);
     return 1; // aborts the store operation
   };
   ble_hs_cfg.store_status_arg = this;
@@ -211,6 +206,10 @@ ESP32Bluetooth::ESP32Bluetooth(Callbacks &callbacks)
   ble_hs_cfg.sm_their_key_dist = 1;
   ble_hs_cfg.sm_mitm = 1;
   ble_hs_cfg.sm_sc = 1;
+
+  ble_hs_cfg.store_read_cb = ble_store_config_read;
+  ble_hs_cfg.store_write_cb = ble_store_config_write;
+  ble_hs_cfg.store_delete_cb = ble_store_config_delete;
 
   // TODO: Perform application specific tasks/initialization
 
@@ -255,7 +254,7 @@ ESP32Bluetooth::ESP32Bluetooth(Callbacks &callbacks)
   ble_cv.wait(lk, [] { return ble_synchronized; });
 
   if (int err = ble_hs_id_infer_auto(0, &own_addr_type)) {
-    MainDebugf("ble_hs_id_infer_auto() => %s\n", BleErrToStr(err));
+    Debugf("ble_hs_id_infer_auto() => %s\n", BleErrToStr(err));
   }
 }
 
@@ -284,7 +283,7 @@ void ESP32Bluetooth::StartScan() {
 
   if (int err = ble_gap_disc(own_addr_type, BLE_HS_FOREVER, &params,
                              OnGapEventThis, this)) {
-    MainDebugf("ble_gap_disc() => %s\n", BleErrToStr(err));
+    Debugf("ble_gap_disc() => %s\n", BleErrToStr(err));
     return;
   }
 }
@@ -330,12 +329,17 @@ static string ToAddrStr(uint16_t conn_handle) {
 int ESP32Bluetooth::OnGapEvent(ble_gap_event *event) {
   switch (event->type) {
   case BLE_GAP_EVENT_CONNECT: {
-    // MainDebugf("OnGapEvent(BLE_GAP_EVENT_CONNECT, handle=%d, status=%d)\n",
+    // Debugf("OnGapEvent(BLE_GAP_EVENT_CONNECT, handle=%d, status=%d)\n",
     //            event->connect.conn_handle, event->connect.status);
     auto &connect = event->connect;
     if (connect.status == 0) {
+      ble_gap_conn_desc desc;
+      if (ble_gap_conn_find(connect.conn_handle, &desc) == 0) {
+        Debugf("Connected as %s\n",
+               desc.role == BLE_GAP_ROLE_MASTER ? "CENTRAL" : "PERIPHERAL");
+      }
       ble_gattc_exchange_mtu(connect.conn_handle, nullptr, nullptr);
-      // callbacks_.OnConnected(connecting_address);
+      // Note: OnConnected is called after MTU information is exchanged
     } else {
       callbacks_.OnDisconnected(connecting_address);
     }
@@ -344,25 +348,24 @@ int ESP32Bluetooth::OnGapEvent(ble_gap_event *event) {
   }
   case BLE_GAP_EVENT_DISCONNECT: {
     auto &disconnect = event->disconnect;
-    MainDebugf(
-        "OnGapEvent(BLE_GAP_EVENT_DISCONNECT, conn_handle=%d, reason=%d)\n",
-        disconnect.conn.conn_handle, disconnect.reason);
+    Debugf("OnGapEvent(BLE_GAP_EVENT_DISCONNECT, conn_handle=%d, reason=%d)\n",
+           disconnect.conn.conn_handle, disconnect.reason);
     auto addr = ToStr(disconnect.conn.peer_id_addr);
     callbacks_.OnDisconnected(addr);
     break;
   }
   case BLE_GAP_EVENT_CONN_UPDATE: {
-    // MainDebugf("OnGapEvent(BLE_GAP_EVENT_CONN_UPDATE)\n");
+    // Debugf("OnGapEvent(BLE_GAP_EVENT_CONN_UPDATE)\n");
     break;
   }
   case BLE_GAP_EVENT_CONN_UPDATE_REQ: {
-    // MainDebugf("OnGapEvent(BLE_GAP_EVENT_CONN_UPDATE_REQ)\n");
+    // Debugf("OnGapEvent(BLE_GAP_EVENT_CONN_UPDATE_REQ)\n");
     break;
   }
   case BLE_GAP_EVENT_L2CAP_UPDATE_REQ: {
     // auto &req = event->conn_update_req;
     // auto &params = *req.peer_params;
-    // MainDebugf("OnGapEvent(BLE_GAP_EVENT_L2CAP_UPDATE_REQ, conn_handle=%d, "
+    // Debugf("OnGapEvent(BLE_GAP_EVENT_L2CAP_UPDATE_REQ, conn_handle=%d, "
     //            "itvl_min=%d, itvl_max=%d, latency=%d, supervision_timeout=%d,
     //            " "min_ce_len=%d, max_ce_len=%d)\n", req.conn_handle,
     //            params.itvl_min, params.itvl_max, params.latency,
@@ -371,16 +374,16 @@ int ESP32Bluetooth::OnGapEvent(ble_gap_event *event) {
     return 0;
   }
   case BLE_GAP_EVENT_TERM_FAILURE: {
-    MainDebugf("OnGapEvent(BLE_GAP_EVENT_TERM_FAILURE)\n");
+    Debugf("OnGapEvent(BLE_GAP_EVENT_TERM_FAILURE)\n");
     break;
   }
   case BLE_GAP_EVENT_DISC: {
-    // MainDebugf("OnGapEvent(BLE_GAP_EVENT_DISC)");
+    // Debugf("OnGapEvent(BLE_GAP_EVENT_DISC)");
     auto addr = ToStr(event->disc.addr);
     ble_hs_adv_fields fields;
     if (int err = ble_hs_adv_parse_fields(&fields, event->disc.data,
                                           event->disc.length_data)) {
-      MainDebugf("ble_hs_adv_parse_fields() => %s\n", BleErrToStr(err));
+      Debugf("ble_hs_adv_parse_fields() => %s\n", BleErrToStr(err));
       break;
     }
     if (fields.name != nullptr) {
@@ -390,16 +393,16 @@ int ESP32Bluetooth::OnGapEvent(ble_gap_event *event) {
     break;
   }
   case BLE_GAP_EVENT_DISC_COMPLETE: {
-    MainDebugf("OnGapEvent(BLE_GAP_EVENT_DISC_COMPLETE)\n");
+    Debugf("OnGapEvent(BLE_GAP_EVENT_DISC_COMPLETE)\n");
     break;
   }
   case BLE_GAP_EVENT_ADV_COMPLETE: {
-    MainDebugf("OnGapEvent(BLE_GAP_EVENT_ADV_COMPLETE)\n");
+    Debugf("OnGapEvent(BLE_GAP_EVENT_ADV_COMPLETE)\n");
     break;
   }
   case BLE_GAP_EVENT_ENC_CHANGE: {
     auto &enc_change = event->enc_change;
-    // MainDebugf("OnGapEvent(BLE_GAP_EVENT_ENC_CHANGE, handle=%d,
+    // Debugf("OnGapEvent(BLE_GAP_EVENT_ENC_CHANGE, handle=%d,
     // status=%s)\n",
     //            enc_change.conn_handle, BleErrToStr(enc_change.status));
     auto addr = ToAddrStr(enc_change.conn_handle);
@@ -410,7 +413,7 @@ int ESP32Bluetooth::OnGapEvent(ble_gap_event *event) {
     break;
   }
   case BLE_GAP_EVENT_PASSKEY_ACTION: {
-    MainDebugf("OnGapEvent(BLE_GAP_EVENT_PASSKEY_ACTION)\n");
+    Debugf("OnGapEvent(BLE_GAP_EVENT_PASSKEY_ACTION)\n");
     break;
   }
   case BLE_GAP_EVENT_NOTIFY_RX: {
@@ -421,12 +424,12 @@ int ESP32Bluetooth::OnGapEvent(ble_gap_event *event) {
       size += it->om_len;
       ++chunks;
     }
-    // MainDebugf(
+    // Debugf(
     //     "OnGapEvent(BLE_GAP_EVENT_NOTIFY_RX, conn=%d, attr=%d size=%d)\n",
     //     rx.conn_handle, rx.attr_handle, size);
 
     if (chunks > 1) {
-      MainDebugf("  ERROR - received message in >1 chunk\n");
+      Debugf("  ERROR - received message in >1 chunk\n");
       return 1;
     }
     auto address = ToAddrStr(rx.conn_handle);
@@ -444,16 +447,16 @@ int ESP32Bluetooth::OnGapEvent(ble_gap_event *event) {
     return 0;
   }
   case BLE_GAP_EVENT_NOTIFY_TX: {
-    MainDebugf("OnGapEvent(BLE_GAP_EVENT_NOTIFY_TX)\n");
+    Debugf("OnGapEvent(BLE_GAP_EVENT_NOTIFY_TX)\n");
     break;
   }
   case BLE_GAP_EVENT_SUBSCRIBE: {
-    MainDebugf("OnGapEvent(BLE_GAP_EVENT_SUBSCRIBE)\n");
+    Debugf("OnGapEvent(BLE_GAP_EVENT_SUBSCRIBE)\n");
     break;
   }
   case BLE_GAP_EVENT_MTU: {
     auto &mtu = event->mtu;
-    // MainDebugf("OnGapEvent(BLE_GAP_EVENT_MTU, conn_handle=%d, channel_id=%d,
+    // Debugf("OnGapEvent(BLE_GAP_EVENT_MTU, conn_handle=%d, channel_id=%d,
     // "
     //            "value=%d)\n",
     //            mtu.conn_handle, mtu.channel_id, mtu.value);
@@ -462,43 +465,43 @@ int ESP32Bluetooth::OnGapEvent(ble_gap_event *event) {
     break;
   }
   case BLE_GAP_EVENT_IDENTITY_RESOLVED: {
-    MainDebugf("OnGapEvent(BLE_GAP_EVENT_IDENTITY_RESOLVED)\n");
+    Debugf("OnGapEvent(BLE_GAP_EVENT_IDENTITY_RESOLVED)\n");
     break;
   }
   case BLE_GAP_EVENT_REPEAT_PAIRING: {
-    MainDebugf("OnGapEvent(BLE_GAP_EVENT_REPEAT_PAIRING)\n");
+    Debugf("OnGapEvent(BLE_GAP_EVENT_REPEAT_PAIRING)\n");
     break;
   }
   case BLE_GAP_EVENT_PHY_UPDATE_COMPLETE: {
-    MainDebugf("OnGapEvent(BLE_GAP_EVENT_PHY_UPDATE_COMPLETE)\n");
+    Debugf("OnGapEvent(BLE_GAP_EVENT_PHY_UPDATE_COMPLETE)\n");
     break;
   }
   case BLE_GAP_EVENT_PERIODIC_SYNC: {
-    MainDebugf("OnGapEvent(BLE_GAP_EVENT_PERIODIC_SYNC)\n");
+    Debugf("OnGapEvent(BLE_GAP_EVENT_PERIODIC_SYNC)\n");
     break;
   }
   case BLE_GAP_EVENT_PERIODIC_REPORT: {
-    MainDebugf("OnGapEvent(BLE_GAP_EVENT_PERIODIC_REPORT)\n");
+    Debugf("OnGapEvent(BLE_GAP_EVENT_PERIODIC_REPORT)\n");
     break;
   }
   case BLE_GAP_EVENT_PERIODIC_SYNC_LOST: {
-    MainDebugf("OnGapEvent(BLE_GAP_EVENT_PERIODIC_SYNC_LOST)\n");
+    Debugf("OnGapEvent(BLE_GAP_EVENT_PERIODIC_SYNC_LOST)\n");
     break;
   }
   case BLE_GAP_EVENT_SCAN_REQ_RCVD: {
-    MainDebugf("OnGapEvent(BLE_GAP_EVENT_SCAN_REQ_RCVD)\n");
+    Debugf("OnGapEvent(BLE_GAP_EVENT_SCAN_REQ_RCVD)\n");
     break;
   }
   case BLE_GAP_EVENT_PERIODIC_TRANSFER: {
-    MainDebugf("OnGapEvent(BLE_GAP_EVENT_PERIODIC_TRANSFER)\n");
+    Debugf("OnGapEvent(BLE_GAP_EVENT_PERIODIC_TRANSFER)\n");
     break;
   }
   case BLE_GAP_EVENT_REATTEMPT_COUNT: {
-    MainDebugf("OnGapEvent(BLE_GAP_EVENT_REATTEMPT_COUNT)\n");
+    Debugf("OnGapEvent(BLE_GAP_EVENT_REATTEMPT_COUNT)\n");
     return 0;
   }
   default: {
-    MainDebugf("OnGapEvent(%d)\n", event->type);
+    Debugf("OnGapEvent(%d)\n", event->type);
     break;
   }
   }
@@ -507,30 +510,31 @@ int ESP32Bluetooth::OnGapEvent(ble_gap_event *event) {
 
 void ESP32Bluetooth::StopScan() {
   if (int err = ble_gap_disc_cancel()) {
-    MainDebugf("ble_gap_disc_cancel() => %s\n", BleErrToStr(err));
+    Debugf("ble_gap_disc_cancel() => %s\n", BleErrToStr(err));
   }
 }
 
 bool ESP32Bluetooth::Connect(string_view address_text) {
   auto addr = ToAddr(address_text);
+  connecting_address = address_text;
   if (int err = ble_gap_connect(own_addr_type, &addr, 30000, nullptr,
                                 OnGapEventThis, this)) {
-    MainDebugf("ble_gap_connect() => %s\n", BleErrToStr(err));
+    Debugf("ble_gap_connect() => %s\n", BleErrToStr(err));
+    connecting_address.clear();
     return false;
   }
-  connecting_address = address_text;
   return true;
 }
 
 bool ESP32Bluetooth::Pair(string_view addr_str) {
   auto conn_handle = ToConnHandle(addr_str);
   if (conn_handle == 0) {
-    MainDebugf("Attempted to pair with non-connected address!/n");
+    Debugf("Attempted to pair with non-connected address!/n");
     return false;
   }
   if (int err = ble_gap_security_initiate(conn_handle)) {
-    MainDebugf("ble_gap_security_initiate(%d) => %s\n", conn_handle,
-               BleErrToStr(err));
+    Debugf("ble_gap_security_initiate(%d) => %s\n", conn_handle,
+           BleErrToStr(err));
     return false;
   }
   return true;
@@ -545,15 +549,15 @@ bool ESP32Bluetooth::Bond(string_view address) {
 void ESP32Bluetooth::ResolveServices(string_view addr_str) {
   auto conn_handle = ToConnHandle(addr_str);
   if (conn_handle == 0) {
-    MainDebugf("Attempted to discover services on non-connected address!/n");
+    Debugf("Attempted to discover services on non-connected address!/n");
     return;
   }
   devices_[conn_handle].services.clear();
   devices_[conn_handle].active_tasks = 1;
   if (int err =
           ble_gattc_disc_all_svcs(conn_handle, OnGattSvcDiscoveredThis, this)) {
-    MainDebugf("ble_gattc_disc_all_svcs(%d) => %s\n", conn_handle,
-               BleErrToStr(err));
+    Debugf("ble_gattc_disc_all_svcs(%d) => %s\n", conn_handle,
+           BleErrToStr(err));
   }
 }
 
@@ -572,7 +576,7 @@ int ESP32Bluetooth::OnGattSvcDiscovered(uint16_t conn_handle,
     auto &device = devices_[conn_handle];
     device.services.push_back(Device::Service());
     device.services.back().svc = *service;
-    // MainDebugf("Discovered service start_handle=%d end_handle=%d\n",
+    // Debugf("Discovered service start_handle=%d end_handle=%d\n",
     //            service->start_handle, service->end_handle);
     // auto uuid = ToStr(service->uuid);
     // RunOnMain([=]() { Debugf("  UUID=%s\n", uuid.c_str()); });
@@ -588,13 +592,13 @@ int ESP32Bluetooth::OnGattSvcDiscovered(uint16_t conn_handle,
       end_handle = std::max(end_handle, svc.svc.end_handle);
     }
     device.active_tasks++;
-    // MainDebugf(
+    // Debugf(
     //     "Starting characteristic discovery start_handle=%d
     //     end_handle=%d...\n", start_handle, end_handle);
     if (int err = ble_gattc_disc_all_chrs(conn_handle, start_handle, end_handle,
                                           OnGattChrDiscoveredThis, this)) {
-      MainDebugf("ble_gattc_disc_all_chrs(%d) => %s\n", conn_handle,
-                 BleErrToStr(err));
+      Debugf("ble_gattc_disc_all_chrs(%d) => %s\n", conn_handle,
+             BleErrToStr(err));
     }
 
     if (--device.active_tasks == 0) {
@@ -604,7 +608,7 @@ int ESP32Bluetooth::OnGattSvcDiscovered(uint16_t conn_handle,
     break;
   }
   default:
-    MainDebugf("OnGattSvcDiscovered(%s)\n", BleErrToStr(error->status));
+    Debugf("OnGattSvcDiscovered(%s)\n", BleErrToStr(error->status));
     return error->status;
   }
   return 0;
@@ -634,13 +638,13 @@ int ESP32Bluetooth::OnGattChrDiscovered(uint16_t conn_handle,
       }
     }
     if (srv == nullptr) {
-      MainDebugf("couldn't find service for handle %d\n", chr->def_handle);
+      Debugf("couldn't find service for handle %d\n", chr->def_handle);
       break;
     }
     srv->characteristics.push_back(Device::Characteristic());
     auto &characteristic = srv->characteristics.back();
     characteristic.chr = *chr;
-    // MainDebugf(
+    // Debugf(
     //     "Discovered characteristic def_handle=%d val_handle=%d props=%d\n",
     //     chr->def_handle, chr->val_handle, chr->properties);
     // auto uuid = ToStr(chr->uuid);
@@ -657,7 +661,7 @@ int ESP32Bluetooth::OnGattChrDiscovered(uint16_t conn_handle,
     break;
   }
   default:
-    MainDebugf("OnGattChrDiscovered(%s)\n", BleErrToStr(error->status));
+    Debugf("OnGattChrDiscovered(%s)\n", BleErrToStr(error->status));
     return error->status;
   }
   return 0;
@@ -672,7 +676,7 @@ bool ESP32Bluetooth::SubscribeCharacteristic(string_view address,
   if (auto it = devices_.find(conn_handle); it != devices_.end()) {
     device = &it->second;
   } else {
-    MainDebugf("Device not found!\n");
+    Debugf("Device not found!\n");
     return false;
   }
 
@@ -692,7 +696,7 @@ bool ESP32Bluetooth::SubscribeCharacteristic(string_view address,
   }
 
   if (char_val_handle == 0) {
-    MainDebugf("Characteristic not found!\n");
+    Debugf("Characteristic not found!\n");
     return false;
   }
 
@@ -701,15 +705,13 @@ bool ESP32Bluetooth::SubscribeCharacteristic(string_view address,
   uint16_t cccd_handle = char_val_handle + 1;
   uint8_t notify_value[2] = {0x01, 0x00}; // Enable notifications
 
-  MainDebugf(
-      "Subscribing to characteristic %s, val_handle=%d, cccd_handle=%d\n",
-      characteristic_uuid.data(), char_val_handle, cccd_handle);
+  Debugf("Subscribing to characteristic %s, val_handle=%d, cccd_handle=%d\n",
+         characteristic_uuid.data(), char_val_handle, cccd_handle);
 
   int err = ble_gattc_write_flat(conn_handle, cccd_handle, notify_value,
                                  sizeof(notify_value), nullptr, nullptr);
   if (err) {
-    MainDebugf("ble_gattc_write_flat() for subscription => %s\n",
-               BleErrToStr(err));
+    Debugf("ble_gattc_write_flat() for subscription => %s\n", BleErrToStr(err));
     return false;
   }
 
@@ -740,7 +742,7 @@ bool ESP32Bluetooth::WriteCharacteristic(string_view address,
   if (auto it = devices_.find(conn_handle); it != devices_.end()) {
     device = &it->second;
   } else {
-    MainDebugf("Device not found!\n");
+    Debugf("Device not found!\n");
     return false;
   }
 
@@ -764,7 +766,7 @@ bool ESP32Bluetooth::WriteCharacteristic(string_view address,
   }
 
   if (char_handle == 0) {
-    MainDebugf("Characteristic not found!\n");
+    Debugf("Characteristic not found!\n");
     return false;
   }
   int enomems = 0;
@@ -775,14 +777,14 @@ try_again:
   int err = ble_gattc_write_flat(conn_handle, char_handle, value.data(),
                                  value.size(), OnGattWrittenThis, this);
   if (err == BLE_HS_ENOMEM && enomems < 5) {
-    MainDebugf("ble_gattc_write_flat() => ENOMEM - retry %d\n", enomems);
+    Debugf("ble_gattc_write_flat() => ENOMEM - retry %d\n", enomems);
     constexpr static int backoff[] = {10, 40, 80, 160, 200};
     vTaskDelay(backoff[enomems] / portTICK_PERIOD_MS);
     ++enomems;
     goto try_again;
   }
   if (err) {
-    MainDebugf("ble_gattc_write_flat() => %s\n", BleErrToStr(err));
+    Debugf("ble_gattc_write_flat() => %s\n", BleErrToStr(err));
     return false;
   }
 
