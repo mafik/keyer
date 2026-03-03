@@ -292,8 +292,8 @@ void ESP32Bluetooth::StartScan() {
 string ToStr(ble_addr_t &addr) {
   string s = "(?)??:??:??:??:??:??";
   snprintf(s.data(), s.size() + 1, "(%d)%02X:%02X:%02X:%02X:%02X:%02X",
-           addr.type, addr.val[5], addr.val[4], addr.val[3], addr.val[2],
-           addr.val[1], addr.val[0]);
+           addr.type < 10 ? addr.type : 9, addr.val[5], addr.val[4],
+           addr.val[3], addr.val[2], addr.val[1], addr.val[0]);
   return s;
 }
 
