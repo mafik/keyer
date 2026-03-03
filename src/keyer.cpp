@@ -1,9 +1,10 @@
 #include "keyer.hpp"
 
 #include "app.hpp"
-#include "eye_term.hpp"
 #include "keyboard.hpp"
 #include "main_loop.hpp"
+#include "secrets.hpp"
+#include <optional>
 
 namespace atmt {
 
@@ -32,6 +33,7 @@ constexpr GPIO_Pin kButtonPin[NUM_BUTTONS] = {
     [MIDDLE_8] = 8,  [RING_9] = 42,
 };
 
+// Actions form a stack (`next` is started and stopped "within" this action)
 struct Action {
   virtual void OnStart() = 0;
   virtual void OnStop() = 0;
@@ -158,13 +160,42 @@ struct FunctionAction : Action {
   void OnStop() override {}
 };
 
+// Ensures that for action sequences, modifiers are only applied to the first
+// key in the sequence. This is useful for shift
+struct ModifierConsumer {
+  Modifier saved_temp_modifiers;
+  Modifier saved_held_modifiers;
+  bool saved_ogonek;
+
+  ModifierConsumer()
+      : saved_temp_modifiers(temp_modifiers),
+        saved_held_modifiers(held_modifiers), saved_ogonek(ogonek) {
+    modifiers_consumed = true;
+    temp_modifiers = 0;
+    held_modifiers = 0;
+    // ogonek = false;
+  }
+
+  ~ModifierConsumer() {
+    temp_modifiers = saved_temp_modifiers;
+    held_modifiers = saved_held_modifiers;
+    ogonek = saved_ogonek;
+  }
+
+  Modifier GetModifiers() const {
+    return saved_temp_modifiers | saved_held_modifiers;
+  }
+
+  bool GetOgonek() const { return saved_ogonek; }
+};
+
 struct WriteUnicodeAction : Action {
   uint32_t codepoint;
   WriteUnicodeAction(uint32_t unichar, Action *next = nullptr)
       : Action(next), codepoint(unichar) {}
-  void OnStart() override {
-    Modifier modifiers = temp_modifiers | held_modifiers;
-    modifiers_consumed = true;
+
+  std::optional<ModifierConsumer> mods = std::nullopt;
+  void Write(Modifier modifiers, bool ogonek) {
     if (ogonek) {
       IBM_Key fkey = IBM_Key::NONE;
       if (codepoint >= '1' && codepoint <= '9') {
@@ -189,24 +220,28 @@ struct WriteUnicodeAction : Action {
       current_app->OnUnicode(codepoint, modifiers);
     }
   }
-  void OnStop() override {}
+  void OnStart() override {
+    mods.emplace();
+    Write(mods->GetModifiers(), mods->GetOgonek());
+  }
+  void OnStop() override { mods.reset(); }
 };
 
 struct WriteIBM_KeyAction : Action {
   IBM_Key key;
   WriteIBM_KeyAction(IBM_Key key, Action *next = nullptr)
       : Action(next), key(key) {}
+  std::optional<ModifierConsumer> mods = std::nullopt;
   void OnStart() override {
+    mods.emplace();
     Debugf("ibm_key %s", ToStr(key));
-    Modifier modifiers = temp_modifiers | held_modifiers;
-    modifiers_consumed = true;
-    current_app->OnKey(key, modifiers);
+    current_app->OnKey(key, mods->GetModifiers());
   }
-  void OnStop() override {}
+  void OnStop() override { mods.reset(); }
 };
 
-// A modifier that affects the next key press.
-// It's released along with the next key.
+// A modifier that affects the nested key press.
+// It's released along with the nested key.
 struct TemporaryModifierAction : Action {
   Modifier modifier;
   TemporaryModifierAction(Modifier modifier, Action *next = nullptr)
@@ -269,6 +304,12 @@ static Action *Key(uint32_t unichar, Action *next = nullptr) {
 }
 static Action *Key(IBM_Key key, Action *next = nullptr) {
   return new WriteIBM_KeyAction(key, next);
+}
+template <typename T> static Action *Seq(const T *str, Action *next = nullptr) {
+  if (*str) {
+    return Key(*str, Seq(str + 1, next));
+  }
+  return next;
 }
 static Action *Mod(Modifier modifier, Action *next = nullptr) {
   return new TemporaryModifierAction(modifier, next);
@@ -614,6 +655,42 @@ void InitKeyer() {
   CHORDS[2][1][2][0][0] = Key('x');
   CHORDS[0][2][1][1][0] = Key('y');
   CHORDS[2][2][0][1][0] = Key('z');
+
+  // C++ snippets
+  CHORDS[0][0][1][2][0] = Seq("auto");
+  CHORDS[1][0][1][2][0] = Seq("// ");
+  CHORDS[2][0][1][2][0] = Seq("nullptr");
+  CHORDS[0][0][2][2][0] = Seq("float ");
+  CHORDS[1][0][2][2][0] = Seq(" override");
+  CHORDS[2][0][2][2][0] = Seq("value");
+
+  CHORDS[0][1][1][2][0] = Seq("return ");
+  CHORDS[1][1][1][2][0] = Seq("for");
+  CHORDS[2][1][1][2][0] = Seq("include");
+
+  CHORDS[1][1][2][1][0] = Seq("const");
+  CHORDS[2][2][0][2][0] = Seq("type");
+
+  // Common bigrams
+  CHORDS[2][1][2][2][0] = Seq("ex");
+  CHORDS[0][2][0][2][0] = Seq("ke");
+  CHORDS[1][2][1][1][0] = Seq("je");
+  CHORDS[2][2][1][1][0] = Seq("wi");
+  CHORDS[0][2][2][1][0] = Seq("he");
+
+  // Common word chunks
+  CHORDS[1][2][2][1][0] = Seq("ction");
+  CHORDS[2][2][2][1][0] = Seq("ight");
+
+  // Terminal snippets
+  CHORDS[3][1][2][2][0] = Seq("sudo ");
+  CHORDS[3][2][2][1][0] = Seq("/home/maf/");
+
+  // Secret snippets
+  for (int i = 0; i < 4; ++i) {
+    CHORDS[i][2][2][2][0] = Seq(SECRET_SNIPPET[i]);
+  }
+
   arpeggios[INDEX_7][RING_9] =
       Fn([]() { App::SaveAndRestart(App::Kind::kKeyboard); });
   arpeggios[RING_9][INDEX_7] =

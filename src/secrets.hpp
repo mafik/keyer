@@ -1,5 +1,8 @@
 #pragma once
 
+// Secret snippets that can be entered by some chords
+extern const wchar_t *SECRET_SNIPPET[4];
+
 // Hardcoded WiFi SSID
 extern const char *WIFI_SSID;
 
