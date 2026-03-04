@@ -58,16 +58,18 @@ function pickWordsForPractice(count = 3) {
   let wordList = studyLists[currentLevel()];
 
   if (wordList.length < 2) {
-    wordList.push(
-      learning_sequence[newIndex] +
-        learning_sequence[oldIndex] +
-        learning_sequence[newIndex],
-    );
-    wordList.push(
-      learning_sequence[oldIndex] +
-        learning_sequence[newIndex] +
-        learning_sequence[oldIndex],
-    );
+    const a = learning_sequence[oldIndex];
+    const b = learning_sequence[newIndex];
+    // Pick a random previously-learned letter (excluding a and b), or nothing
+    let candidates = [];
+    for (let i = 0; i < oldIndex; i++) {
+      candidates.push(learning_sequence[i]);
+    }
+    // Add "nothing" as an option
+    candidates.push("");
+    const c = candidates[Math.floor(Math.random() * candidates.length)];
+    wordList.push(a + b + c);
+    wordList.push(c + b + a);
   }
 
   for (let i = 0; i < count; i++) {
