@@ -67,9 +67,11 @@ function pickWordsForPractice(count = 3) {
     }
     // Add "nothing" as an option
     candidates.push("");
-    const c = candidates[Math.floor(Math.random() * candidates.length)];
-    wordList.push(a + b + c);
-    wordList.push(c + b + a);
+    for (let i = 0; i < count; i++) {
+      const c = candidates[Math.floor(Math.random() * candidates.length)];
+      ret.push(Math.random() < 0.5 ? a + b + c : c + b + a);
+    }
+    return ret;
   }
 
   for (let i = 0; i < count; i++) {
