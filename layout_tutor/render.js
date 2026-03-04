@@ -282,7 +282,8 @@ function render() {
   renderLearningSequence(ctx, width);
 
   // Render chord grid below learning sequence
-  renderChordGrid(ctx, width);
+  if (!localStorage.getItem("no_chordgrid"))
+    renderChordGrid(ctx, width);
 
   ctx.restore();
 
