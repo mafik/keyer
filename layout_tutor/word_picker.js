@@ -62,7 +62,7 @@ function pickWordsForPractice(count = 3) {
     const b = learning_sequence[newIndex];
     // Pick a random previously-learned letter (excluding a and b), or nothing
     let candidates = [];
-    for (let i = 0; i < oldIndex; i++) {
+    for (let i = 0; i <= oldIndex; i++) {
       candidates.push(learning_sequence[i]);
     }
     // Add "nothing" as an option
