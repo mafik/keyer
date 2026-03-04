@@ -1,9 +1,8 @@
 #include "eye_term.hpp"
 
 #include "app.hpp"
-#include "app_keyboard.hpp"
-#include "app_terminal.hpp"
 #include "common_esp32.hpp"
+#include "forth.hpp"
 #include "keyer.hpp"
 #include "main_loop.hpp"
 #include "ssh.hpp"
@@ -43,12 +42,12 @@ void setup() {
   InitKeyer();
   current_app = App::Load();
   current_app->OnSetup();
+  ForthInit();
 
   const char *reset_reasons[] = {
-      "UNKNOWN",       "POWERON",    "EXT",       "SW",
-      "PANIC",         "INT_WDT",    "TASK_WDT",  "WDT",
-      "DEEPSLEEP",     "BROWNOUT",   "SDIO",      "USB",
-      "JTAG",          "EFUSE",      "PWR_GLITCH", "CPU_LOCKUP",
+      "UNKNOWN",  "POWERON", "EXT",        "SW",         "PANIC", "INT_WDT",
+      "TASK_WDT", "WDT",     "DEEPSLEEP",  "BROWNOUT",   "SDIO",  "USB",
+      "JTAG",     "EFUSE",   "PWR_GLITCH", "CPU_LOCKUP",
   };
   auto reason = esp_reset_reason();
   Debugf("Reset reason: %d (%s)\n", reason,

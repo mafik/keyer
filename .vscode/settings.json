@@ -1,0 +1,8 @@
+{
+  "files.associations": {
+    "secrets.cpp": "secrets"
+  },
+  "github.copilot.enable": {
+    "secrets": false
+  }
+}

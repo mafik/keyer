@@ -1,0 +1,3 @@
+[submodule "lib/ueforth"]
+	path = lib/ueforth
+	url = https://github.com/flagxor/ueforth

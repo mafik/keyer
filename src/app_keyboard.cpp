@@ -1,6 +1,5 @@
 #include "app_keyboard.hpp"
 
-#include "common_esp32.hpp"
 #include "eye_term.hpp"
 
 #include <NimBLEDevice.h>

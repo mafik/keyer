@@ -12,4 +12,5 @@ idf_component_register(SRCS
     "ssh.cpp"
     "keyer.cpp"
     "keyboard.cpp"
+    "forth.cpp"
 )
