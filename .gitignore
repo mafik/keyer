@@ -6,3 +6,5 @@ layout_generator/build/
 *.so
 keyer_simulator_test
 src/secrets.cpp
+*.bmp
+*.xcf
