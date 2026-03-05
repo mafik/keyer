@@ -1,10 +1,14 @@
 #include "forth.hpp"
 
-#include "app.hpp"
 #include "common_esp32.hpp"
 #include "keyer.hpp"
+#include "ssh.hpp"
+#include "typist.hpp"
 
 #include <string>
+
+#include "esp_debug_helpers.h"
+#include "freertos/task_snapshot.h"
 
 // File I/O support for Forth dictionary save/restore
 #include "SPIFFS.h"
@@ -30,7 +34,7 @@ static char filename2[PATH_MAX];
 
 #define PRINT_ERRORS 0
 #define STACK_CELLS 512
-#define MINIMUM_FREE_SYSTEM_HEAP (64 * 1024)
+#define MINIMUM_FREE_SYSTEM_HEAP (32 * 1024)
 
 // Minimal vocabulary list — just forth and internals
 #define VOCABULARY_LIST V(forth) V(internals)
@@ -46,6 +50,7 @@ static char filename2[PATH_MAX];
       "CAPTURE-TYPE", CAPTURE_TYPE,                                            \
       if (forth_capture_buf) { forth_capture_buf->append(c1, n0); } NIP;       \
       DROP)                                                                    \
+  X("SSH", SSH_CMD, atmt::StartSSHSession())                                   \
   YV(internals, MALLOC, SET malloc(n0))                                        \
   YV(internals, SYSFREE, free(a0); DROP)                                       \
   YV(internals, REALLOC, SET realloc(a1, n0); NIP)                             \
@@ -206,12 +211,8 @@ static cell_t *evaluate1(cell_t *rp) {
 
 #include "../lib/ueforth/common/interp.h"
 
-// --- Text buffer ---
 namespace atmt {
 
-static std::string text_buffer;
-static int cursor_pos = 0;
-static constexpr int kMaxBufferLen = 200;
 static bool forth_ready = false;
 
 static constexpr const char *kDictFile = "/spiffs/forth.dat";
@@ -281,130 +282,40 @@ static void ForthRestore() {
   Debugf("Forth: restore → '%s'\n", result.c_str());
 }
 
-// --- Chord handlers ---
-
-std::unique_ptr<App> old_app;
-
-struct ForthAppWrapper : App {
-  void OnSetup() override { old_app->OnSetup(); }
-  void OnLoop() override { old_app->OnLoop(); }
-  // Apply shift to ASCII codepoint (US keyboard layout)
-  static uint32_t ApplyShift(uint32_t c) {
-    static const char unshifted[] = "`1234567890-=[]\\;',./";
-    static const char shifted[] = "~!@#$%^&*()_+{}|:\"<>?";
-    if (c >= 'a' && c <= 'z')
-      return c - 32;
-    for (int i = 0; unshifted[i]; i++) {
-      if (c == (uint32_t)unshifted[i])
-        return shifted[i];
-    }
-    return c;
-  }
-
-  void OnUnicode(uint32_t codepoint, Modifier mods) override {
-    old_app->OnUnicode(codepoint, mods);
-
-    if (codepoint == '\n' || codepoint == '\r' || codepoint == '\t' ||
-        codepoint == 0x1b) {
-      text_buffer.clear();
-      cursor_pos = 0;
-      return;
-    }
-
-    if (codepoint < 32 || codepoint > 126)
-      return;
-    if ((int)text_buffer.size() >= kMaxBufferLen)
-      return;
-
-    // Apply shift modifier so text_buffer matches what the host sees
-    uint32_t ch = (mods & MOD_SHIFT) ? ApplyShift(codepoint) : codepoint;
-    text_buffer.insert(text_buffer.begin() + cursor_pos, (char)ch);
-    cursor_pos++;
-  }
-
-  void OnKey(IBM_Key key, Modifier mods) override {
-    old_app->OnKey(key, mods);
-    bool ctrl = mods & MOD_CTRL;
-    switch (key) {
-    case IBM_Key::BACKSPACE:
-      if (cursor_pos > 0) {
-        cursor_pos--;
-        text_buffer.erase(cursor_pos, 1);
-      }
-      break;
-    case IBM_Key::DELETE:
-      if (cursor_pos < (int)text_buffer.size()) {
-        text_buffer.erase(cursor_pos, 1);
-      }
-      break;
-    case IBM_Key::LEFT_ARROW:
-      if (ctrl) {
-        while (cursor_pos > 0 && text_buffer[cursor_pos - 1] == ' ')
-          cursor_pos--;
-        while (cursor_pos > 0 && text_buffer[cursor_pos - 1] != ' ')
-          cursor_pos--;
-      } else if (cursor_pos > 0) {
-        cursor_pos--;
-      }
-      break;
-    case IBM_Key::RIGHT_ARROW:
-      if (ctrl) {
-        int len = text_buffer.size();
-        while (cursor_pos < len && text_buffer[cursor_pos] != ' ')
-          cursor_pos++;
-        while (cursor_pos < len && text_buffer[cursor_pos] == ' ')
-          cursor_pos++;
-      } else if (cursor_pos < (int)text_buffer.size()) {
-        cursor_pos++;
-      }
-      break;
-    case IBM_Key::HOME:
-      cursor_pos = 0;
-      break;
-    case IBM_Key::END:
-      cursor_pos = text_buffer.size();
-      break;
-    case IBM_Key::ENTER:
-    case IBM_Key::TAB:
-    case IBM_Key::ESC:
-      text_buffer.clear();
-      cursor_pos = 0;
-      break;
-    default:
-      break;
-    }
-  }
-  void OnBattery(int percent) override { old_app->OnBattery(percent); }
-};
+// --- Forth eval-in-place chord handler ---
 
 static void ForthEvalInPlace() {
-  // 1. Delete everything after cursor (old results)
-  int after = text_buffer.size() - cursor_pos;
-  text_buffer.erase(cursor_pos);
-  Debugf("Forth eval(%s)", text_buffer.c_str());
-  for (int i = 0; i < after; i++) {
-    old_app->OnKey(IBM_Key::DELETE, 0);
-  }
+  EditorState &tgt = editor.target;
+  int r = tgt.cursor_row;
+  if (r < 0 || r >= tgt.num_rows)
+    return;
 
-  // 2. Evaluate the code (everything before cursor = whole buffer now)
-  auto output = ForthEval(text_buffer.data(), text_buffer.size());
+  // Code is before cursor, old output is after cursor
+  std::string &row = tgt.rows[r];
+  int col = tgt.cursor_col;
+  if (col > (int)row.size())
+    col = row.size();
+
+  std::string code = row.substr(0, col);
+  Debugf("Forth eval(%s)", code.c_str());
+
+  // Truncate old output after cursor
+  row = code;
+
+  // Evaluate
+  auto output = ForthEval(code.data(), code.size());
   Debugf(" => '%s'\n", output.c_str());
 
-  // 3. Emit output via BLE and append to internal buffer
-  for (int i = output.size() - 1; i >= 0; --i) {
-    char c = output[i];
-    old_app->OnUnicode(c, 0);
-    old_app->OnKey(IBM_Key::LEFT_ARROW, 0);
-  }
-  text_buffer.append(output);
+  // Append output after cursor position (cursor stays at code/output boundary)
+  row += output;
+  // cursor_col stays at col (between code and output)
+
+  WakeTypist();
 }
 
 // --- Init ---
 
 void ForthInit() {
-  old_app = std::move(current_app);
-  current_app = std::make_unique<ForthAppWrapper>();
-
   // Mount SPIFFS for dictionary save/restore
   if (!SPIFFS.begin(true, "/spiffs", 10)) {
     Debugf("Forth: SPIFFS mount failed\n");
@@ -414,7 +325,10 @@ void ForthInit() {
   }
 
   constexpr size_t kHeapSize = 64 * 1024;
-  cell_t *heap = (cell_t *)heap_caps_malloc(kHeapSize, MALLOC_CAP_SPIRAM);
+  // Keep Forth VM in fast internal SRAM — PSRAM is too slow for the tight
+  // interpreter loop and triggers the interrupt watchdog during boot
+  cell_t *heap = (cell_t *)heap_caps_malloc(kHeapSize, MALLOC_CAP_INTERNAL |
+                                                           MALLOC_CAP_8BIT);
   if (!heap) {
     heap = (cell_t *)malloc(kHeapSize);
   }
@@ -442,6 +356,67 @@ void ForthInit() {
   ForthRestore();
 
   RegisterChord(2, 1, 0, 2, 0, ForthEvalInPlace);
+  RegisterChord(1, 1, 0, 2, 0, DebugDumpEditor);
+  RegisterChord(3, 2, 2, 2, 0, [] {
+    std::string out = DebugHeapStr("DebugChord");
+    out += '\n';
+    char tmp[128];
+    auto dump = [&](const char *name, TaskHandle_t h) {
+      if (!h)
+        return;
+      auto state = eTaskGetState(h);
+      if (state == eRunning)
+        return;
+      const char *s = "?";
+      switch (state) {
+      case eReady:
+        s = "RDY";
+        break;
+      case eBlocked:
+        s = "BLK";
+        break;
+      case eSuspended:
+        s = "SUS";
+        break;
+      case eDeleted:
+        s = "DEL";
+        break;
+      default:
+        break;
+      }
+      snprintf(
+          tmp, sizeof(tmp), "                          %-16s %s stack_free=%u ",
+          name, s,
+          (unsigned)(uxTaskGetStackHighWaterMark(h) * sizeof(StackType_t)));
+      out += tmp;
+      // StackType_t is uint8_t on this port — cast to uint32_t* for word access
+      uint32_t *sp = (uint32_t *)pxTCBGetTopOfStack(h);
+      uint32_t *end = (uint32_t *)pxTCBGetEndOfStack(h);
+      int nwords = (end > sp) ? (end - sp) : 0;
+      if (nwords > 256)
+        nwords = 256;
+      int found = 0;
+      for (int i = 0; i < nwords && found < 12; i++) {
+        uint32_t w = sp[i];
+        // Xtensa windowed ABI: top 2 bits of A0 encode CALL type
+        uint32_t pc = (w & 0x3FFFFFFF) | 0x40000000;
+        if ((w >> 30) != 0 && pc >= 0x40000000 && pc < 0x43000000) {
+          snprintf(tmp, sizeof(tmp), "0x%08x ", pc);
+          out += tmp;
+          found++;
+        }
+      }
+      if (!found)
+        out += "(no code addrs)";
+      out += "\n";
+    };
+    extern TaskHandle_t typist_task_handle;
+    dump("Typist", typist_task_handle);
+    extern TaskHandle_t ssh_task_handle;
+    dump("SSH", ssh_task_handle);
+    out.pop_back(); // remove trailing newline
+    Debugf("%s", out.c_str());
+  });
 }
 
 } // namespace atmt

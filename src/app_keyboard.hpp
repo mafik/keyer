@@ -1,18 +1,21 @@
 #pragma once
 
 #include "BleKeyboard.h"
-#include "app.hpp"
+#include "keyboard.hpp"
 
 namespace atmt {
 
-struct AppKeyboard : App {
+struct AppKeyboard {
   BleKeyboard keyboard_{"maf.klaw"};
 
-  void OnSetup() override;
-  void OnLoop() override;
-  void OnUnicode(uint32_t codepoint, Modifier mods) override;
-  void OnKey(IBM_Key key, Modifier mods) override;
-  void OnBattery(int percent) override;
+  void Setup();
+  void Loop();
+  void SendUnicode(uint32_t codepoint, Modifier mods);
+  void SendKey(IBM_Key key, Modifier mods);
+  void SetBattery(int percent);
+  bool IsConnected();
 };
+
+extern AppKeyboard ble_keyboard;
 
 } // namespace atmt

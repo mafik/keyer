@@ -63,4 +63,8 @@ const char *ToStr(IBM_Key);
 // or 0 if codepoint is not a Polish character.
 char GetOgonekBase(uint32_t codepoint);
 
+// Apply US keyboard shift to an ASCII codepoint (e.g. '=' → '+', 'a' → 'A').
+// Returns the character unchanged if it has no shifted form.
+uint32_t ApplyShift(uint32_t codepoint);
+
 } // namespace atmt

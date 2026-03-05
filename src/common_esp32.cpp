@@ -2,7 +2,7 @@
 
 #include <esp_pm.h>
 
-#include "app.hpp"
+#include "app_keyboard.hpp"
 
 namespace atmt {
 
@@ -17,7 +17,7 @@ static void ReadBattery(void *) {
       map(constrain(voltage * 1000, 3000, 4185), 3000, 4185, 0, 100);
 
   Debugf("Battery at %f V, %d%%\n", voltage, batteryPercent);
-  current_app->OnBattery(batteryPercent);
+  ble_keyboard.SetBattery(batteryPercent);
 }
 
 void InitESP32() {

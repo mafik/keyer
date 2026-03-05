@@ -1,5 +1,6 @@
 #include "app_keyboard.hpp"
 
+#include "common_esp32.hpp"
 #include "eye_term.hpp"
 
 #include <NimBLEDevice.h>
@@ -8,6 +9,8 @@
 extern const uint8_t _asciimap[128];
 
 namespace atmt {
+
+AppKeyboard ble_keyboard;
 
 static uint8_t BuildHIDModifiers(Modifier mods) {
   uint8_t result = 0;
@@ -30,7 +33,7 @@ static void SendAndRelease(BleKeyboard &kb, KeyReport &report) {
   kb.sendReport(&empty);
 }
 
-void AppKeyboard::OnSetup() {
+void AppKeyboard::Setup() {
   keyboard_.setName("𝖒𝖆𝖋.🎹");
   keyboard_.begin();
 
@@ -42,9 +45,11 @@ void AppKeyboard::OnSetup() {
   }
 }
 
-void AppKeyboard::OnLoop() { vTaskDelay(pdMS_TO_TICKS(1)); }
+void AppKeyboard::Loop() { vTaskDelay(pdMS_TO_TICKS(1)); }
 
-void AppKeyboard::OnUnicode(uint32_t codepoint, Modifier mods) {
+bool AppKeyboard::IsConnected() { return keyboard_.isConnected(); }
+
+void AppKeyboard::SendUnicode(uint32_t codepoint, Modifier mods) {
   if (!keyboard_.isConnected())
     return;
 
@@ -91,7 +96,7 @@ void AppKeyboard::OnUnicode(uint32_t codepoint, Modifier mods) {
   // Non-ASCII: skip
 }
 
-void AppKeyboard::OnKey(IBM_Key key, Modifier mods) {
+void AppKeyboard::SendKey(IBM_Key key, Modifier mods) {
   if (!keyboard_.isConnected())
     return;
 
@@ -163,6 +168,8 @@ void AppKeyboard::OnKey(IBM_Key key, Modifier mods) {
   SendAndRelease(keyboard_, report);
 }
 
-void AppKeyboard::OnBattery(int percent) { keyboard_.setBatteryLevel(percent); }
+void AppKeyboard::SetBattery(int percent) {
+  keyboard_.setBatteryLevel(percent);
+}
 
 } // namespace atmt

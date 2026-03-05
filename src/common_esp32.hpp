@@ -82,4 +82,20 @@ const GPIO_Pin BATTERY_PIN = 3;
 
 void InitESP32();
 
+inline std::string DebugHeapStr(const char *label) {
+  char buf[256];
+  snprintf(buf, sizeof(buf),
+           "HEAP[%s] free=%u largest=%u free8bit=%u freePSRAM=%u stack=%u",
+           label, esp_get_free_heap_size(),
+           heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+           heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+           heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+           uxTaskGetStackHighWaterMark(nullptr) * sizeof(StackType_t));
+  return buf;
+}
+
+inline void DebugHeap(const char *label) {
+  Debugln(DebugHeapStr(label).c_str());
+}
+
 } // namespace atmt

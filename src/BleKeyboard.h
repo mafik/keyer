@@ -6,6 +6,9 @@
 #include "sdkconfig.h"
 #if defined(CONFIG_BT_ENABLED)
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+
 #if defined(USE_NIMBLE)
 
 #include "NimBLECharacteristic.h"
@@ -142,8 +145,8 @@ private:
   std::string        deviceManufacturer;
   uint8_t            batteryLevel;
   bool               connected = false;
-  uint32_t           _delay_ms = 7;
-  void delay_ms(uint64_t ms);
+  SemaphoreHandle_t  _txSem = nullptr;
+  void waitForTx();
 
   uint16_t vid       = 0x05ac;
   uint16_t pid       = 0x820a;
@@ -166,8 +169,6 @@ public:
   bool isConnected(void);
   void setBatteryLevel(uint8_t level);
   void setName(std::string deviceName);
-  void setDelay(uint32_t ms);
-
   void set_vendor_id(uint16_t vid);
   void set_product_id(uint16_t pid);
   void set_version(uint16_t version);
@@ -177,6 +178,7 @@ protected:
   virtual void onDisconnect(BLEServer* pServer) override;
   virtual void onDisconnect(BLEServer* pServer, ble_gap_conn_desc* desc) override;
   virtual void onWrite(BLECharacteristic* me) override;
+  virtual void onStatus(BLECharacteristic* pCharacteristic, Status s, int code) override;
 
 };
 

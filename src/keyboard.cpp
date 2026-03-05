@@ -261,4 +261,27 @@ char GetOgonekBase(uint32_t codepoint) {
   }
 }
 
+uint32_t ApplyShift(uint32_t c) {
+  if (c >= 'a' && c <= 'z')
+    return c - 32;
+  static const char unshifted[] = "`1234567890-=[]\\;',./";
+  static const char shifted[] = "~!@#$%^&*()_+{}|:\"<>?";
+  for (int i = 0; unshifted[i]; ++i)
+    if (c == (uint32_t)unshifted[i])
+      return shifted[i];
+  // Polish ogoneks
+  switch (c) {
+  case U'ą': return U'Ą';
+  case U'ć': return U'Ć';
+  case U'ę': return U'Ę';
+  case U'ł': return U'Ł';
+  case U'ń': return U'Ń';
+  case U'ó': return U'Ó';
+  case U'ś': return U'Ś';
+  case U'ź': return U'Ź';
+  case U'ż': return U'Ż';
+  }
+  return c;
+}
+
 } // namespace atmt

@@ -122,6 +122,8 @@ void BleKeyboard::begin(void) {
   inputMediaKeys = hid->inputReport(MEDIA_KEYS_ID);
 
   outputKeyboard->setCallbacks(this);
+  inputKeyboard->setCallbacks(this);
+  inputMediaKeys->setCallbacks(this);
 
   hid->manufacturer()->setValue(deviceManufacturer);
 
@@ -153,6 +155,9 @@ void BleKeyboard::begin(void) {
 
   esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "ble_connected", &s_pm_lock);
 
+  _txSem = xSemaphoreCreateBinary();
+  xSemaphoreGive(_txSem); // start as available
+
   ESP_LOGD(LOG_TAG, "Advertising started!");
 }
 
@@ -171,39 +176,36 @@ void BleKeyboard::setName(std::string deviceName) {
   this->deviceName = deviceName;
 }
 
-/**
- * @brief Sets the waiting time (in milliseconds) between multiple keystrokes in
- * NimBLE mode.
- *
- * @param ms Time in milliseconds
- */
-void BleKeyboard::setDelay(uint32_t ms) { this->_delay_ms = ms; }
-
 void BleKeyboard::set_vendor_id(uint16_t vid) { this->vid = vid; }
 
 void BleKeyboard::set_product_id(uint16_t pid) { this->pid = pid; }
 
 void BleKeyboard::set_version(uint16_t version) { this->version = version; }
 
+void BleKeyboard::waitForTx() {
+  // Wait for the previous notification to be transmitted before sending the
+  // next one.  The semaphore is given back by onStatus() when the BLE stack
+  // confirms the notification was sent.  Timeout guards against a lost
+  // callback.
+  if (_txSem)
+    xSemaphoreTake(_txSem, pdMS_TO_TICKS(50));
+}
+
 void BleKeyboard::sendReport(KeyReport *keys) {
   if (this->isConnected()) {
+    waitForTx();
     this->inputKeyboard->setValue((uint8_t *)keys, sizeof(KeyReport));
     this->inputKeyboard->notify();
-#if defined(USE_NIMBLE)
-    // vTaskDelay(delayTicks);
-    this->delay_ms(_delay_ms);
-#endif // USE_NIMBLE
+    vTaskDelay(pdMS_TO_TICKS(15));
   }
 }
 
 void BleKeyboard::sendReport(MediaKeyReport *keys) {
   if (this->isConnected()) {
+    waitForTx();
     this->inputMediaKeys->setValue((uint8_t *)keys, sizeof(MediaKeyReport));
     this->inputMediaKeys->notify();
-#if defined(USE_NIMBLE)
-    // vTaskDelay(delayTicks);
-    this->delay_ms(_delay_ms);
-#endif // USE_NIMBLE
+    vTaskDelay(pdMS_TO_TICKS(15));
   }
 }
 
@@ -559,6 +561,11 @@ void BleKeyboard::onWrite(BLECharacteristic *me) {
   ESP_LOGI(LOG_TAG, "special keys: %d", *value);
 }
 
-void BleKeyboard::delay_ms(uint64_t ms) {
-  vTaskDelay(pdMS_TO_TICKS(ms));
+void BleKeyboard::onStatus(BLECharacteristic *pCharacteristic, Status s,
+                           int code) {
+  // Called by NimBLE when a notification has been transmitted (or an
+  // indication acknowledged).  Release the semaphore so the next sendReport
+  // can proceed.
+  if (_txSem)
+    xSemaphoreGive(_txSem);
 }

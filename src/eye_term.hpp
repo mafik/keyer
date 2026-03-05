@@ -1,6 +1,5 @@
 #pragma once
 
-#include "app.hpp"
 #include "common_esp32.hpp"
 #include "main_loop.hpp"
 
@@ -9,7 +8,7 @@ namespace atmt {
 // Used internally
 void LogAndDeleteOnMain(uint64_t str_ptr);
 
-// Log the given message to the glasses / serial console
+// Log the given message to the serial console
 //
 // Make sure to end the message with \n, otherwise it's going to mess up the
 // output.

@@ -1,9 +1,9 @@
 #include "keyer.hpp"
 
-#include "app.hpp"
 #include "keyboard.hpp"
 #include "main_loop.hpp"
 #include "secrets.hpp"
+#include "typist.hpp"
 #include <optional>
 
 namespace atmt {
@@ -210,14 +210,14 @@ struct WriteUnicodeAction : Action {
       }
       if (fkey != IBM_Key::NONE) {
         Debugf("key %s", ToStr(fkey));
-        current_app->OnKey(fkey, modifiers);
+        HandleKey(fkey, modifiers);
       } else {
         Debugf("unicode %d (ogonek)", codepoint);
-        current_app->OnUnicode(GetOgonek(codepoint), modifiers);
+        HandleUnicode(GetOgonek(codepoint), modifiers);
       }
     } else {
       Debugf("unicode %d", codepoint);
-      current_app->OnUnicode(codepoint, modifiers);
+      HandleUnicode(codepoint, modifiers);
     }
   }
   void OnStart() override {
@@ -235,7 +235,7 @@ struct WriteIBM_KeyAction : Action {
   void OnStart() override {
     mods.emplace();
     Debugf("ibm_key %s", ToStr(key));
-    current_app->OnKey(key, mods->GetModifiers());
+    HandleKey(key, mods->GetModifiers());
   }
   void OnStop() override { mods.reset(); }
 };
@@ -374,7 +374,10 @@ void OnButtonDown(Button i) {
   }
 
   buttons_down[i] = true;
-  auto unique_action = FindUniqueAction();
+  // TODO: initial design assumed lots of layers and very few chords
+  // in reality we have one layer and almost all chords used. The unique action
+  // doesn't really help.
+  Action *unique_action = nullptr; // FindUniqueAction();
   if (unique_action) {
     // If a unique key action was found, then don't add it to the
     // chord but rather start it immediately This allows multiple
@@ -685,16 +688,6 @@ void InitKeyer() {
   // Terminal snippets
   CHORDS[3][1][2][2][0] = Seq("sudo ");
   CHORDS[3][2][2][1][0] = Seq("/home/maf/");
-
-  // Secret snippets
-  for (int i = 0; i < 4; ++i) {
-    CHORDS[i][2][2][2][0] = Seq(SECRET_SNIPPET[i]);
-  }
-
-  arpeggios[INDEX_7][RING_9] =
-      Fn([]() { App::SaveAndRestart(App::Kind::kKeyboard); });
-  arpeggios[RING_9][INDEX_7] =
-      Fn([]() { App::SaveAndRestart(App::Kind::kTerminal); });
 
   // Add Shifts
   for (FingerPosition thumb = 0; thumb <= 3; ++thumb) {
