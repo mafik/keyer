@@ -6,6 +6,15 @@
 
 #include <string>
 
+// File I/O support for Forth dictionary save/restore
+#include "SPIFFS.h"
+#include <dirent.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 // --- ueforth integration ---
 // We include ueforth headers directly, defining a minimal configuration.
 
@@ -15,16 +24,22 @@ static std::string *forth_capture_buf = nullptr;
 // Boot source (generated from forth_boot.fs)
 #include "forth_boot.h"
 
-// Minimal configuration — no WiFi, SPIFFS, Serial, etc.
+// File I/O buffers (used by REQUIRED_FILES_SUPPORT opcodes)
+static char filename[PATH_MAX];
+static char filename2[PATH_MAX];
+
+#define PRINT_ERRORS 0
 #define STACK_CELLS 512
 #define MINIMUM_FREE_SYSTEM_HEAP (64 * 1024)
 
 // Minimal vocabulary list — just forth and internals
 #define VOCABULARY_LIST V(forth) V(internals)
 
-// Custom PLATFORM_OPCODE_LIST with only what we need
+// Custom PLATFORM_OPCODE_LIST
+// FORTH-YIELD: like YIELD but in the forth vocabulary (always findable)
 #define PLATFORM_OPCODE_LIST                                                   \
   X("MS-TICKS", MS_TICKS, PUSH millis())                                       \
+  X("FORTH-YIELD", FORTH_YIELD, PARK; return rp)                               \
   XV(internals, "RAW-YIELD", RAW_YIELD, yield())                               \
   XV(internals, "RAW-TERMINATE", RAW_TERMINATE, )                              \
   X(                                                                           \
@@ -45,8 +60,49 @@ static std::string *forth_capture_buf = nullptr;
      n0 = heap_caps_get_minimum_free_size(n0))                                 \
   YV(internals, heap_caps_get_largest_free_block,                              \
      n0 = heap_caps_get_largest_free_block(n0))                                \
+  REQUIRED_FILES_SUPPORT                                                       \
   CALLING_OPCODE_LIST                                                          \
   FLOATING_POINT_LIST
+
+#define REQUIRED_FILES_SUPPORT                                                 \
+  X("R/O", R_O, PUSH O_RDONLY)                                                 \
+  X("W/O", W_O, PUSH O_WRONLY)                                                 \
+  X("R/W", R_W, PUSH O_RDWR)                                                   \
+  Y(BIN, )                                                                     \
+  X("CLOSE-FILE", CLOSE_FILE, tos = close(tos); tos = tos ? errno : 0)         \
+  X("FLUSH-FILE", FLUSH_FILE, fsync(tos); tos = 0)                             \
+  X("OPEN-FILE", OPEN_FILE, cell_t mode = n0; DROP; cell_t len = n0; DROP;     \
+    memcpy(filename, a0, len); filename[len] = 0;                              \
+    n0 = open(filename, mode, 0777); PUSH n0 < 0 ? errno : 0)                  \
+  X("CREATE-FILE", CREATE_FILE, cell_t mode = n0; DROP; cell_t len = n0; DROP; \
+    memcpy(filename, a0, len); filename[len] = 0;                              \
+    n0 = open(filename, mode | O_CREAT | O_TRUNC); PUSH n0 < 0 ? errno : 0)    \
+  X("DELETE-FILE", DELETE_FILE, cell_t len = n0; DROP;                         \
+    memcpy(filename, a0, len); filename[len] = 0; n0 = unlink(filename);       \
+    n0 = n0 ? errno : 0)                                                       \
+  X("RENAME-FILE", RENAME_FILE, cell_t len = n0; DROP;                         \
+    memcpy(filename, a0, len); filename[len] = 0; DROP; cell_t len2 = n0;      \
+    DROP; memcpy(filename2, a0, len2); filename2[len2] = 0;                    \
+    n0 = rename(filename2, filename); n0 = n0 ? errno : 0)                     \
+  X("WRITE-FILE", WRITE_FILE, cell_t fd = n0; DROP; cell_t len = n0; DROP;     \
+    n0 = write(fd, a0, len); n0 = n0 != len ? errno : 0)                       \
+  X("READ-FILE", READ_FILE, cell_t fd = n0; DROP; cell_t len = n0; DROP;       \
+    n0 = read(fd, a0, len); PUSH n0 < 0 ? errno : 0)                           \
+  X("FILE-POSITION", FILE_POSITION, n0 = (cell_t)lseek(n0, 0, SEEK_CUR);       \
+    PUSH n0 < 0 ? errno : 0)                                                   \
+  X("REPOSITION-FILE", REPOSITION_FILE, cell_t fd = n0; DROP;                  \
+    n0 = (cell_t)lseek(fd, tos, SEEK_SET); n0 = n0 < 0 ? errno : 0)            \
+  X("RESIZE-FILE", RESIZE_FILE, cell_t fd = n0; DROP;                          \
+    n0 = ResizeFile(fd, tos))                                                  \
+  X("FILE-SIZE", FILE_SIZE, struct stat st; w = fstat(n0, &st);                \
+    n0 = (cell_t)st.st_size; PUSH w < 0 ? errno : 0)                           \
+  X("NON-BLOCK", NON_BLOCK, n0 = fcntl(n0, F_SETFL, O_NONBLOCK);               \
+    n0 = n0 < 0 ? errno : 0)                                                   \
+  X("OPEN-DIR", OPEN_DIR, memcpy(filename, a1, n0); filename[n0] = 0;          \
+    n1 = (cell_t)opendir(filename); n0 = n1 ? 0 : errno)                       \
+  X("CLOSE-DIR", CLOSE_DIR, n0 = closedir((DIR *)n0); n0 = n0 ? errno : 0)     \
+  YV(internals, READDIR, struct dirent *ent = readdir((DIR *)n0);              \
+     SET(ent ? ent->d_name : 0))
 
 // Disable fault handling
 #define forth_faults_setup()
@@ -62,7 +118,87 @@ static std::string *forth_capture_buf = nullptr;
 
 #include "../lib/ueforth/common/bits.h"
 
+// Work around lack of ftruncate on ESP32 (used by RESIZE-FILE opcode)
+static cell_t ResizeFile(cell_t fd, cell_t size) {
+  struct stat st;
+  char buf[256];
+  cell_t t = fstat(fd, &st);
+  if (t < 0) {
+    return errno;
+  }
+  if (size < st.st_size) {
+    return ENOSYS;
+  }
+  cell_t oldpos = lseek(fd, 0, SEEK_CUR);
+  if (oldpos < 0) {
+    return errno;
+  }
+  t = lseek(fd, 0, SEEK_END);
+  if (t < 0) {
+    return errno;
+  }
+  memset(buf, 0, sizeof(buf));
+  while (st.st_size < size) {
+    cell_t wlen = sizeof(buf);
+    if (size - st.st_size < wlen) {
+      wlen = size - st.st_size;
+    }
+    t = write(fd, buf, wlen);
+    if (t != wlen) {
+      return errno;
+    }
+    st.st_size += t;
+  }
+  t = lseek(fd, oldpos, SEEK_SET);
+  if (t < 0) {
+    return errno;
+  }
+  return 0;
+}
+
+// Replace evaluate1 with a version that doesn't crash on unfound words.
+// The stock evaluate1 returns NULL on error, which causes EVALUATE1 opcode
+// to UNPARK from NULL → LoadProhibited crash. Our version returns rp with
+// tos=0 (skip), matching the empty-parse behavior.
+#define evaluate1 evaluate1_stock
 #include "../lib/ueforth/common/core.h"
+#undef evaluate1
+
+static cell_t *evaluate1(cell_t *rp) {
+  cell_t call = 0;
+  cell_t tos, *sp, *ip;
+  float *fp;
+  UNPARK;
+  cell_t name;
+  cell_t len = parse(' ', &name);
+  if (len == 0) {
+    DUP;
+    tos = 0;
+    PARK;
+    return rp;
+  }
+  cell_t xt = find((const char *)name, len);
+  if (xt) {
+    if (g_sys->state && !(*TOFLAGS(xt) & IMMEDIATE)) {
+      COMMA(xt);
+    } else {
+      call = xt;
+    }
+  } else {
+    char buf[32];
+    int blen = len < 31 ? len : 31;
+    memcpy(buf, (const char *)name, blen);
+    buf[blen] = 0;
+    Debugf("Forth: '%s' not found\n", buf);
+    DUP;
+    tos = 0;
+    PARK;
+    return rp;
+  }
+  PUSH call;
+  PARK;
+  return rp;
+}
 
 #include "../lib/ueforth/common/calls.h"
 
@@ -78,11 +214,20 @@ static int cursor_pos = 0;
 static constexpr int kMaxBufferLen = 200;
 static bool forth_ready = false;
 
+static constexpr const char *kDictFile = "/spiffs/forth.dat";
+
 // --- Forth VM ---
 
+// ForthEval: evaluate Forth text synchronously.
+// Appends " forth-yield" so that interpret0 yields back to us after processing.
 static std::string ForthEval(const char *text, size_t len) {
-  if (!forth_ready || !g_sys)
+  if (!forth_ready || !g_sys || !g_sys->rp)
     return "";
+
+  // Build input with trailing yield
+  std::string input(text, len);
+  input += " forth-yield";
+
   std::string output;
   forth_capture_buf = &output;
 
@@ -91,18 +236,12 @@ static std::string ForthEval(const char *text, size_t len) {
   cell_t old_ntib = g_sys->ntib;
   cell_t old_tin = g_sys->tin;
 
-  g_sys->tib = text;
-  g_sys->ntib = len;
+  g_sys->tib = input.c_str();
+  g_sys->ntib = input.size();
   g_sys->tin = 0;
 
-  // Run the interpreter loop until all input is consumed
-  while (g_sys->tin < g_sys->ntib) {
-    g_sys->rp = forth_run(g_sys->rp);
-    if (!g_sys->rp) {
-      Debugf("Forth eval error\n");
-      break;
-    }
-  }
+  // forth_run resumes interpret0, processes input, hits forth-yield → returns
+  g_sys->rp = forth_run(g_sys->rp);
 
   g_sys->tib = old_tib;
   g_sys->ntib = old_ntib;
@@ -112,6 +251,36 @@ static std::string ForthEval(const char *text, size_t len) {
   return output;
 }
 
+// Save user dictionary to SPIFFS
+static void ForthSave() {
+  if (!forth_ready)
+    return;
+  auto result = ForthEval("s\" "
+                          "/spiffs/forth.dat"
+                          "\" save-name",
+                          strlen("s\" "
+                                 "/spiffs/forth.dat"
+                                 "\" save-name"));
+  Debugf("Forth: save → '%s'\n", result.c_str());
+}
+
+// Restore user dictionary from SPIFFS (if file exists)
+static void ForthRestore() {
+  struct stat st;
+  if (stat(kDictFile, &st) != 0) {
+    Debugf("Forth: no saved dictionary\n");
+    return;
+  }
+  Debugf("Forth: restoring dictionary (%d bytes)\n", (int)st.st_size);
+  auto result = ForthEval("s\" "
+                          "/spiffs/forth.dat"
+                          "\" restore-name",
+                          strlen("s\" "
+                                 "/spiffs/forth.dat"
+                                 "\" restore-name"));
+  Debugf("Forth: restore → '%s'\n", result.c_str());
+}
+
 // --- Chord handlers ---
 
 std::unique_ptr<App> old_app;
@@ -119,6 +288,19 @@ std::unique_ptr<App> old_app;
 struct ForthAppWrapper : App {
   void OnSetup() override { old_app->OnSetup(); }
   void OnLoop() override { old_app->OnLoop(); }
+  // Apply shift to ASCII codepoint (US keyboard layout)
+  static uint32_t ApplyShift(uint32_t c) {
+    static const char unshifted[] = "`1234567890-=[]\\;',./";
+    static const char shifted[] = "~!@#$%^&*()_+{}|:\"<>?";
+    if (c >= 'a' && c <= 'z')
+      return c - 32;
+    for (int i = 0; unshifted[i]; i++) {
+      if (c == (uint32_t)unshifted[i])
+        return shifted[i];
+    }
+    return c;
+  }
+
   void OnUnicode(uint32_t codepoint, Modifier mods) override {
     old_app->OnUnicode(codepoint, mods);
 
@@ -134,7 +316,9 @@ struct ForthAppWrapper : App {
     if ((int)text_buffer.size() >= kMaxBufferLen)
       return;
 
-    text_buffer.insert(text_buffer.begin() + cursor_pos, (char)codepoint);
+    // Apply shift modifier so text_buffer matches what the host sees
+    uint32_t ch = (mods & MOD_SHIFT) ? ApplyShift(codepoint) : codepoint;
+    text_buffer.insert(text_buffer.begin() + cursor_pos, (char)ch);
     cursor_pos++;
   }
 
@@ -193,44 +377,44 @@ struct ForthAppWrapper : App {
   void OnBattery(int percent) override { old_app->OnBattery(percent); }
 };
 
-static void ForthEvalAppend() {
-  auto output = ForthEval(text_buffer.data(), text_buffer.size());
-  for (char c : output) {
-    old_app->OnUnicode(c, 0);
-  }
-}
-
-static void ForthEvalReplace() {
+static void ForthEvalInPlace() {
+  // 1. Delete everything after cursor (old results)
   int after = text_buffer.size() - cursor_pos;
+  text_buffer.erase(cursor_pos);
+  Debugf("Forth eval(%s)", text_buffer.c_str());
   for (int i = 0; i < after; i++) {
     old_app->OnKey(IBM_Key::DELETE, 0);
   }
-  for (int i = 0; i < cursor_pos; i++) {
-    old_app->OnKey(IBM_Key::BACKSPACE, 0);
-  }
 
-  std::string saved = std::move(text_buffer);
-  text_buffer.clear();
-  cursor_pos = 0;
+  // 2. Evaluate the code (everything before cursor = whole buffer now)
+  auto output = ForthEval(text_buffer.data(), text_buffer.size());
+  Debugf(" => '%s'\n", output.c_str());
 
-  auto output = ForthEval(saved.data(), saved.size());
-  for (char c : output) {
+  // 3. Emit output via BLE and append to internal buffer
+  for (int i = output.size() - 1; i >= 0; --i) {
+    char c = output[i];
     old_app->OnUnicode(c, 0);
+    old_app->OnKey(IBM_Key::LEFT_ARROW, 0);
   }
+  text_buffer.append(output);
 }
 
 // --- Init ---
 
 void ForthInit() {
-  Debugln("Forth init 1");
   old_app = std::move(current_app);
   current_app = std::make_unique<ForthAppWrapper>();
 
-  Debugln("Forth init 2");
+  // Mount SPIFFS for dictionary save/restore
+  if (!SPIFFS.begin(true, "/spiffs", 10)) {
+    Debugf("Forth: SPIFFS mount failed\n");
+  } else {
+    Debugf("Forth: SPIFFS mounted (%d/%d bytes used)\n",
+           (int)SPIFFS.usedBytes(), (int)SPIFFS.totalBytes());
+  }
+
   constexpr size_t kHeapSize = 64 * 1024;
   cell_t *heap = (cell_t *)heap_caps_malloc(kHeapSize, MALLOC_CAP_SPIRAM);
-
-  Debugln("Forth init 3");
   if (!heap) {
     heap = (cell_t *)malloc(kHeapSize);
   }
@@ -239,65 +423,25 @@ void ForthInit() {
     return;
   }
 
-  Debugln("Forth init 4");
+  // Boot source ends with "forth-yield", so forth_run returns after boot.
+  // After boot, interpret0 is running (begin +evaluate1 again).
+  // We resume it via forth_run for each ForthEval call.
   forth_init(0, 0, heap, kHeapSize, forth_boot, sizeof(forth_boot) - 1);
+  g_sys->rp = forth_run(g_sys->rp);
 
-  Debugln("Forth init 5");
-  // Run boot code to completion
-  while (g_sys->rp) {
-    g_sys->rp = forth_run(g_sys->rp);
+  if (!g_sys->rp) {
+    Debugf("Forth: boot failed\n");
+    return;
   }
-
-  Debugln("Forth init 6");
-
-  // Set up type to use our capture builtin via evaluate
-  const char *setup = "' capture-type is type";
-  g_sys->tib = setup;
-  g_sys->ntib = strlen(setup);
-  g_sys->tin = 0;
-
-  Debugln("Forth init 7");
-
-  // Build a small interpreter loop in the heap
-  cell_t *start = g_sys->heap;
-  cell_t evaluate1_xt = find("EVALUATE1", 9);
-  cell_t branch_xt = find("BRANCH", 6);
-  if (evaluate1_xt && branch_xt) {
-    COMMA(evaluate1_xt);
-    COMMA(branch_xt);
-    COMMA(start);
-
-    // Allocate stacks for evaluation
-    float *fp_s = (float *)(g_sys->heap + 1);
-    g_sys->heap += STACK_CELLS;
-    cell_t *rp_s = g_sys->heap + 1;
-    g_sys->heap += STACK_CELLS;
-    cell_t *sp_s = g_sys->heap + 1;
-    g_sys->heap += STACK_CELLS;
-
-    *++rp_s = (cell_t)start;
-    *++rp_s = (cell_t)fp_s;
-    *sp_s = 0;
-    *++rp_s = (cell_t)sp_s;
-
-    cell_t *rp = rp_s;
-    while (g_sys->tin < g_sys->ntib) {
-      rp = forth_run(rp);
-      if (!rp)
-        break;
-    }
-    // Save rp for future evaluations
-    g_sys->rp = rp;
-  }
-
-  Debugln("Forth init 8");
 
   forth_ready = true;
-  Debugf("Forth: initialized, heap used %d bytes\n",
+  Debugf("Forth: ready, heap used %d bytes\n",
          (int)((uint8_t *)g_sys->heap - (uint8_t *)g_sys->heap_start));
 
-  RegisterChord(2, 1, 0, 2, 0, ForthEvalAppend);
-  RegisterChord(2, 1, 0, 2, 1, ForthEvalReplace);
+  // Restore saved dictionary if available
+  ForthRestore();
+
+  RegisterChord(2, 1, 0, 2, 0, ForthEvalInPlace);
 }
 
 } // namespace atmt
