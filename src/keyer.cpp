@@ -197,18 +197,18 @@ struct WriteUnicodeAction : Action {
   std::optional<ModifierConsumer> mods = std::nullopt;
   void Write(Modifier modifiers, bool ogonek) {
     if (ogonek) {
-      IBM_Key fkey = IBM_Key::NONE;
+      HID_Key fkey = HID_Key::NONE;
       if (codepoint >= '1' && codepoint <= '9') {
-        fkey = static_cast<IBM_Key>(static_cast<int>(IBM_Key::F1) +
+        fkey = static_cast<HID_Key>(static_cast<int>(HID_Key::F1) +
                                     (codepoint - '1'));
       } else if (codepoint == '0') {
-        fkey = IBM_Key::F10;
+        fkey = HID_Key::F10;
       } else if (codepoint == '-') {
-        fkey = IBM_Key::F11;
+        fkey = HID_Key::F11;
       } else if (codepoint == '=') {
-        fkey = IBM_Key::F12;
+        fkey = HID_Key::F12;
       }
-      if (fkey != IBM_Key::NONE) {
+      if (fkey != HID_Key::NONE) {
         Debugf("key %s", ToStr(fkey));
         HandleKey(fkey, modifiers);
       } else {
@@ -228,8 +228,8 @@ struct WriteUnicodeAction : Action {
 };
 
 struct WriteIBM_KeyAction : Action {
-  IBM_Key key;
-  WriteIBM_KeyAction(IBM_Key key, Action *next = nullptr)
+  HID_Key key;
+  WriteIBM_KeyAction(HID_Key key, Action *next = nullptr)
       : Action(next), key(key) {}
   std::optional<ModifierConsumer> mods = std::nullopt;
   void OnStart() override {
@@ -302,7 +302,7 @@ static Action *Fn(std::function<void()> func, Action *next = nullptr) {
 static Action *Key(uint32_t unichar, Action *next = nullptr) {
   return new WriteUnicodeAction(unichar, next);
 }
-static Action *Key(IBM_Key key, Action *next = nullptr) {
+static Action *Key(HID_Key key, Action *next = nullptr) {
   return new WriteIBM_KeyAction(key, next);
 }
 template <typename T> static Action *Seq(const T *str, Action *next = nullptr) {
@@ -585,29 +585,29 @@ void InitKeyer() {
   CHORDS[2][2][1][0][0] = new TemporaryOgonekAction();
 
   // Thumb layer 1 (THUMB_0 pressed)
-  CHORDS[1][0][0][0][0] = Key(IBM_Key::BACKSPACE);
-  CHORDS[1][0][0][0][1] = Key(IBM_Key::DELETE);
+  CHORDS[1][0][0][0][0] = Key(HID_Key::BACKSPACE);
+  CHORDS[1][0][0][0][1] = Key(HID_Key::DELETE);
 
   // Thumb layer 2 (THUMB_1 pressed)
   CHORDS[2][0][0][0][0] = Key(' ');
-  CHORDS[2][1][0][0][0] = Key(IBM_Key::ENTER);
-  CHORDS[2][2][0][0][0] = Key(IBM_Key::TAB);
-  CHORDS[2][1][0][0][1] = Key(IBM_Key::ESC);
+  CHORDS[2][1][0][0][0] = Key(HID_Key::ENTER);
+  CHORDS[2][2][0][0][0] = Key(HID_Key::TAB);
+  CHORDS[2][1][0][0][1] = Key(HID_Key::ESC);
 
   // Thumb layer 3 (THUMB_2 pressed) - special keys and navigation
   CHORDS[3][0][0][0][0] = Mod(MOD_CTRL);
-  CHORDS[3][0][1][1][0] = Key(IBM_Key::RIGHT_ARROW);
-  CHORDS[3][0][1][2][0] = Key(IBM_Key::DOWN_ARROW);
-  CHORDS[3][0][2][1][0] = Mod(MOD_CTRL, Key(IBM_Key::RIGHT_ARROW)); // C+right
-  CHORDS[3][0][2][2][0] = Key(IBM_Key::PAGE_DOWN);                  // page down
+  CHORDS[3][0][1][1][0] = Key(HID_Key::RIGHT_ARROW);
+  CHORDS[3][0][1][2][0] = Key(HID_Key::DOWN_ARROW);
+  CHORDS[3][0][2][1][0] = Mod(MOD_CTRL, Key(HID_Key::RIGHT_ARROW)); // C+right
+  CHORDS[3][0][2][2][0] = Key(HID_Key::PAGE_DOWN);                  // page down
   CHORDS[3][1][0][0][0] = Mod(MOD_SUPER, Key('\n'));
-  CHORDS[3][1][0][1][0] = Key(IBM_Key::LEFT_ARROW); // left
-  CHORDS[3][1][0][2][0] = Key(IBM_Key::UP_ARROW);   // up
-  CHORDS[3][1][2][1][0] = Key(IBM_Key::HOME);       // home
+  CHORDS[3][1][0][1][0] = Key(HID_Key::LEFT_ARROW); // left
+  CHORDS[3][1][0][2][0] = Key(HID_Key::UP_ARROW);   // up
+  CHORDS[3][1][2][1][0] = Key(HID_Key::HOME);       // home
   CHORDS[3][2][0][0][0] = Hold(THUMB_2, MOD_ALT, Key('\t'));
-  CHORDS[3][2][0][1][0] = Mod(MOD_CTRL, Key(IBM_Key::LEFT_ARROW)); // C+left
-  CHORDS[3][2][0][2][0] = Key(IBM_Key::PAGE_UP);                   // page up
-  CHORDS[3][2][1][1][0] = Key(IBM_Key::END);                       // end
+  CHORDS[3][2][0][1][0] = Mod(MOD_CTRL, Key(HID_Key::LEFT_ARROW)); // C+left
+  CHORDS[3][2][0][2][0] = Key(HID_Key::PAGE_UP);                   // page up
+  CHORDS[3][2][1][1][0] = Key(HID_Key::END);                       // end
 
   // abcdefghijklmnopqrstuvwxyz 1234567890 `-= []\;',./
   // ABCDEFGHIJKLMNOPQRSTUVWXYZ !@#$%^&*() ~_+ {}|:"<>?

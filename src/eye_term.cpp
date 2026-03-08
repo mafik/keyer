@@ -1,10 +1,10 @@
 #include "eye_term.hpp"
 
-#include "app_keyboard.hpp"
+#include "ble_keyboard.hpp"
 #include "common_esp32.hpp"
-#include "tcl.hpp"
 #include "keyer.hpp"
 #include "main_loop.hpp"
+#include "tcl.hpp"
 #include "typist.hpp"
 
 namespace atmt {
@@ -44,8 +44,4 @@ void setup() {
   DebugHeap("after-TclInit");
 }
 
-void loop() {
-  while (atmt::MainLoopNonBlocking()) {
-  }
-  ble_keyboard.Loop();
-}
+void loop() { atmt::MainLoopBlocking(); }

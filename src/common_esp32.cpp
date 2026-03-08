@@ -2,7 +2,7 @@
 
 #include <esp_pm.h>
 
-#include "app_keyboard.hpp"
+#include "ble_keyboard.hpp"
 
 namespace atmt {
 

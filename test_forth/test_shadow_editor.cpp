@@ -1,4 +1,4 @@
-#include "../src/keyboard.cpp"      // For ToStr(IBM_Key) etc.
+#include "../src/keyboard.cpp"      // For ToStr(HID_Key) etc.
 #include "../src/shadow_editor.cpp" // Include implementation directly for simplicity
 #include <cassert>
 #include <cstdio>
@@ -97,7 +97,7 @@ static void test_apply_char() {
 static void test_apply_backspace() {
   printf("test_apply_backspace...");
   EditorState s = MakeState({"hello"}, 0, 3);
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::BACKSPACE));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::BACKSPACE));
   assert(s.rows[0] == "helo");
   assert(s.cursor_col == 2);
   printf(" OK\n");
@@ -106,7 +106,7 @@ static void test_apply_backspace() {
 static void test_apply_backspace_merge_lines() {
   printf("test_apply_backspace_merge_lines...");
   EditorState s = MakeState({"hello", "world"}, 1, 0);
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::BACKSPACE));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::BACKSPACE));
   assert(s.num_rows == 1);
   assert(s.rows[0] == "helloworld");
   assert(s.cursor_row == 0);
@@ -117,7 +117,7 @@ static void test_apply_backspace_merge_lines() {
 static void test_apply_delete() {
   printf("test_apply_delete...");
   EditorState s = MakeState({"hello"}, 0, 2);
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::DELETE));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::DELETE));
   assert(s.rows[0] == "helo");
   assert(s.cursor_col == 2);
   printf(" OK\n");
@@ -126,7 +126,7 @@ static void test_apply_delete() {
 static void test_apply_delete_merge_lines() {
   printf("test_apply_delete_merge_lines...");
   EditorState s = MakeState({"hello", "world"}, 0, 5);
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::DELETE));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::DELETE));
   assert(s.num_rows == 1);
   assert(s.rows[0] == "helloworld");
   assert(s.cursor_row == 0);
@@ -137,7 +137,7 @@ static void test_apply_delete_merge_lines() {
 static void test_apply_enter() {
   printf("test_apply_enter...");
   EditorState s = MakeState({"hello"}, 0, 2);
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::ENTER));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::ENTER));
   assert(s.num_rows == 2);
   assert(s.rows[0] == "he");
   assert(s.rows[1] == "llo");
@@ -157,7 +157,7 @@ static void test_apply_enter_full() {
   s.cursor_row = EditorState::kRows - 1;
   s.cursor_col = 2;
 
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::ENTER));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::ENTER));
 
   // Row 0 ("row0") dropped. Last row split at col 2: "ro" + "w6".
   assert(s.num_rows == EditorState::kRows);
@@ -179,7 +179,7 @@ static void test_apply_enter_full_middle() {
   s.cursor_row = 3;
   s.cursor_col = 2;
 
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::ENTER));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::ENTER));
 
   // Row 0 ("row0") dropped. Row 3 ("row3") split: "ro" + "w3".
   assert(s.num_rows == EditorState::kRows);
@@ -199,21 +199,21 @@ static void test_apply_navigation() {
   printf("test_apply_navigation...");
   EditorState s = MakeState({"abc", "defgh"}, 0, 1);
 
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::HOME));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::HOME));
   assert(s.cursor_col == 0);
 
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::END));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::END));
   assert(s.cursor_col == 3);
 
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::DOWN_ARROW));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::DOWN_ARROW));
   assert(s.cursor_row == 1);
 
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::UP_ARROW));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::UP_ARROW));
   assert(s.cursor_row == 0);
 
   // After UP, cursor_row=0, cursor_col=3 (from END). RIGHT wraps since
   // col 3 == len("abc") -> next line col 0.
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::RIGHT_ARROW));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::RIGHT_ARROW));
   assert(s.cursor_row == 1);
   assert(s.cursor_col == 0);
 
@@ -223,7 +223,7 @@ static void test_apply_navigation() {
 static void test_apply_left_wraps() {
   printf("test_apply_left_wraps...");
   EditorState s = MakeState({"abc", "def"}, 1, 0);
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::LEFT_ARROW));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::LEFT_ARROW));
   assert(s.cursor_row == 0);
   assert(s.cursor_col == 3);
   printf(" OK\n");
@@ -233,34 +233,34 @@ static void test_leave_and_return() {
   printf("test_leave_and_return...");
   EditorState s = MakeState({"abc", "defgh"}, 0, 1);
 
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::UP_ARROW));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::UP_ARROW));
   assert(s.cursor_row == -1);
 
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::UP_ARROW));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::UP_ARROW));
   assert(s.cursor_row == -2);
 
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::DOWN_ARROW));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::DOWN_ARROW));
   assert(s.cursor_row == -1);
 
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::DOWN_ARROW));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::DOWN_ARROW));
   assert(s.cursor_row == 0);
 
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::DOWN_ARROW));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::DOWN_ARROW));
   assert(s.cursor_row == 1);
 
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::DOWN_ARROW));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::DOWN_ARROW));
   assert(s.cursor_row == 2);
 
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::DOWN_ARROW));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::DOWN_ARROW));
   assert(s.cursor_row == 3);
 
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::UP_ARROW));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::UP_ARROW));
   assert(s.cursor_row == 2);
 
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::UP_ARROW));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::UP_ARROW));
   assert(s.cursor_row == 1);
 
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::UP_ARROW));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::UP_ARROW));
   assert(s.cursor_row == 0);
   assert(s.cursor_col == 1);
 
@@ -271,8 +271,8 @@ static void test_leave_up_and_write() {
   printf("test_leave_up_and_write...");
   EditorState s = MakeState({"abc", "defgh"}, 0, 3);
 
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::UP_ARROW));
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::UP_ARROW));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::UP_ARROW));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::UP_ARROW));
   ApplyKeystroke(s, Keystroke::Char('x'));
 
   EditorState expected = MakeState({"x", "", "abc", "defgh"}, 0, 1);
@@ -285,9 +285,9 @@ static void test_leave_down_and_write() {
   printf("test_leave_down_and_write...");
   EditorState s = MakeState({"abc", "defgh"}, 0, 3);
 
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::DOWN_ARROW));
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::DOWN_ARROW));
-  ApplyKeystroke(s, Keystroke::Key(IBM_Key::DOWN_ARROW));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::DOWN_ARROW));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::DOWN_ARROW));
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::DOWN_ARROW));
   ApplyKeystroke(s, Keystroke::Char('x'));
 
   EditorState expected = MakeState({"abc", "defgh", "", "x"}, 3, 1);
@@ -626,8 +626,8 @@ static void test_nk_ssh_output_scroll() {
   AssertContentMatch(ed.current, ed.target, "ssh_output_scroll");
   // Scrolled-out lines should be forgotten, not deleted.
   for (auto &k : ks) {
-    assert(k.key != IBM_Key::DELETE);
-    assert(k.key != IBM_Key::BACKSPACE);
+    assert(k.key != HID_Key::DELETE);
+    assert(k.key != HID_Key::BACKSPACE);
   }
   printf(" OK (keystrokes: %zu)\n", ks.size());
 }
@@ -718,7 +718,7 @@ static void test_nk_navigate_across_short_row() {
   AssertContentMatch(ed.current, ed.target, "navigate_across_short_row");
   // Should include HOME before the first DOWN
   assert(ks.size() > 0);
-  assert(ks[0].key == IBM_Key::HOME);
+  assert(ks[0].key == HID_Key::HOME);
   printf(" OK (keystrokes: %zu)\n", ks.size());
 }
 

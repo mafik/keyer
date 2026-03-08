@@ -141,7 +141,7 @@ static void RunOneSSHSession() {
     int wifi_attempts = 0;
     while (WiFi.status() != WL_CONNECTED) {
       vTaskDelay(pdMS_TO_TICKS(100));
-      if (++wifi_attempts > 300) {
+      if (++wifi_attempts > 100) {
         SetStatusMessage("SSH: WiFi timeout!\n");
         Debugln("SSH: WiFi timeout");
         goto cleanup;

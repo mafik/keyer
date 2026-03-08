@@ -15,7 +15,7 @@ void WakeTypist();
 // Called by keyer when a chord produces a character or key.
 // Routes to BLE keyboard or SSH channel depending on mode.
 void HandleUnicode(uint32_t codepoint, Modifier mods);
-void HandleKey(IBM_Key key, Modifier mods);
+void HandleKey(HID_Key key, Modifier mods);
 
 // Send a keystroke through the editor (event-based mode).
 // If idle: sends via BLE immediately + updates both states.

@@ -16,11 +16,14 @@ bool EditorState::operator==(const EditorState &o) const {
   // Compare clamped cursor positions (target may have out-of-bounds cursor)
   auto clamp = [](const EditorState &s) -> std::pair<int, int> {
     int r = s.cursor_row;
-    if (r < 0) r = 0;
-    if (r >= s.num_rows) r = s.num_rows - 1;
+    if (r < 0)
+      r = 0;
+    if (r >= s.num_rows)
+      r = s.num_rows - 1;
     int c = s.cursor_col;
     int len = (r >= 0 && r < s.num_rows) ? (int)s.rows[r].size() : 0;
-    if (c > len) c = len;
+    if (c > len)
+      c = len;
     return {r, c};
   };
   return clamp(*this) == clamp(o);
@@ -59,8 +62,8 @@ static void MaterializeCursor(EditorState &s) {
     s.num_rows += insert;
     s.cursor_row += insert;
   } else if (s.cursor_row >= s.num_rows) {
-    int insert =
-        std::min(s.cursor_row - s.num_rows + 1, EditorState::kRows - s.num_rows);
+    int insert = std::min(s.cursor_row - s.num_rows + 1,
+                          EditorState::kRows - s.num_rows);
     for (int i = 0; i < insert; ++i)
       s.rows[s.num_rows + i].clear();
     s.num_rows += insert;
@@ -70,23 +73,23 @@ static void MaterializeCursor(EditorState &s) {
 
 void ApplyKeystroke(EditorState &s, Keystroke ks) {
   // UP/DOWN move freely — cursor can leave the tracked area.
-  if (ks.key == IBM_Key::UP_ARROW) {
+  if (ks.key == HID_Key::UP_ARROW) {
     s.cursor_row--;
     return;
   }
-  if (ks.key == IBM_Key::DOWN_ARROW) {
+  if (ks.key == HID_Key::DOWN_ARROW) {
     s.cursor_row++;
     return;
   }
 
   // Navigation keys that reference row content: clamp first.
-  if (ks.key == IBM_Key::LEFT_ARROW || ks.key == IBM_Key::RIGHT_ARROW ||
-      ks.key == IBM_Key::HOME || ks.key == IBM_Key::END) {
+  if (ks.key == HID_Key::LEFT_ARROW || ks.key == HID_Key::RIGHT_ARROW ||
+      ks.key == HID_Key::HOME || ks.key == HID_Key::END) {
     s.ClampCursor();
     int r = s.cursor_row;
     int c = s.cursor_col;
     switch (ks.key) {
-    case IBM_Key::LEFT_ARROW:
+    case HID_Key::LEFT_ARROW:
       if (c > 0) {
         s.cursor_col = c - 1;
       } else if (r > 0) {
@@ -94,7 +97,7 @@ void ApplyKeystroke(EditorState &s, Keystroke ks) {
         s.cursor_col = s.RowLen(r - 1);
       }
       break;
-    case IBM_Key::RIGHT_ARROW:
+    case HID_Key::RIGHT_ARROW:
       if (c < s.RowLen(r)) {
         s.cursor_col = c + 1;
       } else if (r < s.num_rows - 1) {
@@ -102,10 +105,10 @@ void ApplyKeystroke(EditorState &s, Keystroke ks) {
         s.cursor_col = 0;
       }
       break;
-    case IBM_Key::HOME:
+    case HID_Key::HOME:
       s.cursor_col = 0;
       break;
-    case IBM_Key::END:
+    case HID_Key::END:
       s.cursor_col = s.RowLen(r);
       break;
     default:
@@ -127,7 +130,7 @@ void ApplyKeystroke(EditorState &s, Keystroke ks) {
   }
 
   switch (ks.key) {
-  case IBM_Key::BACKSPACE:
+  case HID_Key::BACKSPACE:
     if (c > 0) {
       s.rows[r].erase(c - 1, 1);
       s.cursor_col = c - 1;
@@ -143,7 +146,7 @@ void ApplyKeystroke(EditorState &s, Keystroke ks) {
     }
     break;
 
-  case IBM_Key::DELETE:
+  case HID_Key::DELETE:
     if (c < s.RowLen(r)) {
       s.rows[r].erase(c, 1);
     } else if (r < s.num_rows - 1) {
@@ -155,7 +158,7 @@ void ApplyKeystroke(EditorState &s, Keystroke ks) {
     }
     break;
 
-  case IBM_Key::ENTER: {
+  case HID_Key::ENTER: {
     std::string right_part = s.rows[r].substr(c);
     s.rows[r] = s.rows[r].substr(0, c);
     if (s.num_rows < EditorState::kRows) {
@@ -292,20 +295,20 @@ static Keystroke NavigateToward(const EditorState &s, int target_row,
     // HOME first so UP/DOWN starts from column 0 — avoids host editor
     // clamping cursor_col to a shorter line, which would desync our model.
     if (s.cursor_col != 0)
-      return Keystroke::Key(IBM_Key::HOME);
+      return Keystroke::Key(HID_Key::HOME);
     if (s.cursor_row < target_row)
-      return Keystroke::Key(IBM_Key::DOWN_ARROW);
-    return Keystroke::Key(IBM_Key::UP_ARROW);
+      return Keystroke::Key(HID_Key::DOWN_ARROW);
+    return Keystroke::Key(HID_Key::UP_ARROW);
   }
   if (s.cursor_col == target_col)
     return Keystroke::None();
   if (target_col == 0)
-    return Keystroke::Key(IBM_Key::HOME);
+    return Keystroke::Key(HID_Key::HOME);
   if (target_col == s.RowLen(s.cursor_row))
-    return Keystroke::Key(IBM_Key::END);
+    return Keystroke::Key(HID_Key::END);
   if (s.cursor_col < target_col)
-    return Keystroke::Key(IBM_Key::RIGHT_ARROW);
-  return Keystroke::Key(IBM_Key::LEFT_ARROW);
+    return Keystroke::Key(HID_Key::RIGHT_ARROW);
+  return Keystroke::Key(HID_Key::LEFT_ARROW);
 }
 
 Keystroke ShadowEditor::NextKeystroke() {
@@ -384,7 +387,7 @@ Keystroke ShadowEditor::NextKeystroke() {
 
       // Left-to-right sweep: DELETE divergent chars, then type replacements.
       if (cur_end > prefix)
-        return Keystroke::Key(IBM_Key::DELETE);
+        return Keystroke::Key(HID_Key::DELETE);
       if (tgt_end > prefix)
         return Keystroke::Char(tgt_line[prefix]);
 
@@ -416,7 +419,7 @@ Keystroke ShadowEditor::NextKeystroke() {
         if (!nav.IsNone())
           return nav;
       }
-      return Keystroke::Key(IBM_Key::ENTER);
+      return Keystroke::Key(HID_Key::ENTER);
     }
   }
 

@@ -1,26 +1,25 @@
-#include "BleKeyboard.h"
-#include "common_esp32.hpp"
+#include "ble_keyboard.hpp"
+
 #include <freertos/timers.h>
 
-#if defined(USE_NIMBLE)
+#include "HIDTypes.h"
+#include "sdkconfig.h"
 #include <NimBLEDevice.h>
 #include <NimBLEHIDDevice.h>
 #include <NimBLEServer.h>
 #include <NimBLEUtils.h>
-#else
-#include "BLE2902.h"
-#include "BLEHIDDevice.h"
-#include <BLEDevice.h>
-#include <BLEServer.h>
-#include <BLEUtils.h>
-#endif // USE_NIMBLE
-#include "HIDTypes.h"
-#include "sdkconfig.h"
 #include <driver/adc.h>
 #include <esp_pm.h>
 
+#include "common_esp32.hpp"
+#include "main_loop.hpp"
+
 static esp_pm_lock_handle_t s_pm_lock = nullptr;
 static TimerHandle_t s_conn_param_timer = nullptr;
+
+static constexpr TickType_t kMinInterval = pdMS_TO_TICKS(15);
+
+BleKeyboard ble_keyboard{"maf.klaw"};
 
 static void connParamTimerCb(TimerHandle_t xTimer) {
   auto *pServer = NimBLEDevice::getServer();
@@ -141,16 +140,7 @@ void BleKeyboard::begin(void) {
   hid->pnp(0x02, vid, pid, version);
   hid->hidInfo(0x00, 0x01);
 
-#if defined(USE_NIMBLE)
-
   BLEDevice::setSecurityAuth(true, true, true);
-
-#else
-
-  BLESecurity *pSecurity = new BLESecurity();
-  pSecurity->setAuthenticationMode(ESP_LE_AUTH_REQ_SC_MITM_BOND);
-
-#endif // USE_NIMBLE
 
   hid->reportMap((uint8_t *)_hidReportDescriptor, sizeof(_hidReportDescriptor));
   hid->startServices();
@@ -175,11 +165,11 @@ void BleKeyboard::begin(void) {
   ESP_LOGD(LOG_TAG, "Advertising started!");
 }
 
-void BleKeyboard::end(void) {}
+void BleKeyboard::end() {}
 
-bool BleKeyboard::isConnected(void) { return this->connected; }
+bool BleKeyboard::IsConnected() { return this->connected; }
 
-void BleKeyboard::setBatteryLevel(uint8_t level) {
+void BleKeyboard::SetBattery(uint8_t level) {
   this->batteryLevel = level;
   if (hid != 0)
     this->hid->setBatteryLevel(this->batteryLevel);
@@ -206,204 +196,22 @@ void BleKeyboard::waitForTx() {
 }
 
 void BleKeyboard::sendReport(KeyReport *keys) {
-  if (this->isConnected()) {
+  if (this->IsConnected()) {
     waitForTx();
     this->inputKeyboard->setValue((uint8_t *)keys, sizeof(KeyReport));
     this->inputKeyboard->notify();
-    vTaskDelay(pdMS_TO_TICKS(15));
   }
 }
 
 void BleKeyboard::sendReport(MediaKeyReport *keys) {
-  if (this->isConnected()) {
+  if (this->IsConnected()) {
     waitForTx();
     this->inputMediaKeys->setValue((uint8_t *)keys, sizeof(MediaKeyReport));
     this->inputMediaKeys->notify();
-    vTaskDelay(pdMS_TO_TICKS(15));
   }
 }
-
-extern const uint8_t _asciimap[128] PROGMEM;
-
-#define SHIFT 0x80
-const uint8_t _asciimap[128] = {
-    0x00, // NUL
-    0x00, // SOH
-    0x00, // STX
-    0x00, // ETX
-    0x00, // EOT
-    0x00, // ENQ
-    0x00, // ACK
-    0x00, // BEL
-    0x2a, // BS	Backspace
-    0x2b, // TAB	Tab
-    0x28, // LF	Enter
-    0x00, // VT
-    0x00, // FF
-    0x00, // CR
-    0x00, // SO
-    0x00, // SI
-    0x00, // DEL
-    0x00, // DC1
-    0x00, // DC2
-    0x00, // DC3
-    0x00, // DC4
-    0x00, // NAK
-    0x00, // SYN
-    0x00, // ETB
-    0x00, // CAN
-    0x00, // EM
-    0x00, // SUB
-    0x00, // ESC
-    0x00, // FS
-    0x00, // GS
-    0x00, // RS
-    0x00, // US
-
-    0x2c,         //  ' '
-    0x1e | SHIFT, // !
-    0x34 | SHIFT, // "
-    0x20 | SHIFT, // #
-    0x21 | SHIFT, // $
-    0x22 | SHIFT, // %
-    0x24 | SHIFT, // &
-    0x34,         // '
-    0x26 | SHIFT, // (
-    0x27 | SHIFT, // )
-    0x25 | SHIFT, // *
-    0x2e | SHIFT, // +
-    0x36,         // ,
-    0x2d,         // -
-    0x37,         // .
-    0x38,         // /
-    0x27,         // 0
-    0x1e,         // 1
-    0x1f,         // 2
-    0x20,         // 3
-    0x21,         // 4
-    0x22,         // 5
-    0x23,         // 6
-    0x24,         // 7
-    0x25,         // 8
-    0x26,         // 9
-    0x33 | SHIFT, // :
-    0x33,         // ;
-    0x36 | SHIFT, // <
-    0x2e,         // =
-    0x37 | SHIFT, // >
-    0x38 | SHIFT, // ?
-    0x1f | SHIFT, // @
-    0x04 | SHIFT, // A
-    0x05 | SHIFT, // B
-    0x06 | SHIFT, // C
-    0x07 | SHIFT, // D
-    0x08 | SHIFT, // E
-    0x09 | SHIFT, // F
-    0x0a | SHIFT, // G
-    0x0b | SHIFT, // H
-    0x0c | SHIFT, // I
-    0x0d | SHIFT, // J
-    0x0e | SHIFT, // K
-    0x0f | SHIFT, // L
-    0x10 | SHIFT, // M
-    0x11 | SHIFT, // N
-    0x12 | SHIFT, // O
-    0x13 | SHIFT, // P
-    0x14 | SHIFT, // Q
-    0x15 | SHIFT, // R
-    0x16 | SHIFT, // S
-    0x17 | SHIFT, // T
-    0x18 | SHIFT, // U
-    0x19 | SHIFT, // V
-    0x1a | SHIFT, // W
-    0x1b | SHIFT, // X
-    0x1c | SHIFT, // Y
-    0x1d | SHIFT, // Z
-    0x2f,         // [
-    0x31,         // bslash
-    0x30,         // ]
-    0x23 | SHIFT, // ^
-    0x2d | SHIFT, // _
-    0x35,         // `
-    0x04,         // a
-    0x05,         // b
-    0x06,         // c
-    0x07,         // d
-    0x08,         // e
-    0x09,         // f
-    0x0a,         // g
-    0x0b,         // h
-    0x0c,         // i
-    0x0d,         // j
-    0x0e,         // k
-    0x0f,         // l
-    0x10,         // m
-    0x11,         // n
-    0x12,         // o
-    0x13,         // p
-    0x14,         // q
-    0x15,         // r
-    0x16,         // s
-    0x17,         // t
-    0x18,         // u
-    0x19,         // v
-    0x1a,         // w
-    0x1b,         // x
-    0x1c,         // y
-    0x1d,         // z
-    0x2f | SHIFT, // {
-    0x31 | SHIFT, // |
-    0x30 | SHIFT, // }
-    0x35 | SHIFT, // ~
-    0             // DEL
-};
 
 uint8_t USBPutChar(uint8_t c);
-
-// press() adds the specified key (printing, non-printing, or modifier)
-// to the persistent key report and sends the report.  Because of the way
-// USB HID works, the host acts like the key remains pressed until we
-// call release(), releaseAll(), or otherwise clear the report and resend.
-size_t BleKeyboard::press(uint8_t k) {
-  uint8_t i;
-  if (k >= 136) { // it's a non-printing key (not a modifier)
-    k = k - 136;
-  } else if (k >= 128) { // it's a modifier key
-    _keyReport.modifiers |= (1 << (k - 128));
-    k = 0;
-  } else { // it's a printing key
-    k = pgm_read_byte(_asciimap + k);
-    if (!k) {
-      setWriteError();
-      return 0;
-    }
-    if (k &
-        0x80) { // it's a capital letter or other character reached with shift
-      _keyReport.modifiers |= 0x02; // the left shift modifier
-      k &= 0x7F;
-    }
-  }
-
-  // Add k to the key report only if it's not already present
-  // and if there is an empty slot.
-  if (_keyReport.keys[0] != k && _keyReport.keys[1] != k &&
-      _keyReport.keys[2] != k && _keyReport.keys[3] != k &&
-      _keyReport.keys[4] != k && _keyReport.keys[5] != k) {
-
-    for (i = 0; i < 6; i++) {
-      if (_keyReport.keys[i] == 0x00) {
-        _keyReport.keys[i] = k;
-        break;
-      }
-    }
-    if (i == 6) {
-      setWriteError();
-      return 0;
-    }
-  }
-  sendReport(&_keyReport);
-  return 1;
-}
 
 size_t BleKeyboard::press(const MediaKeyReport k) {
   uint16_t k_16 = k[1] | (k[0] << 8);
@@ -414,41 +222,6 @@ size_t BleKeyboard::press(const MediaKeyReport k) {
   _mediaKeyReport[1] = (uint8_t)(mediaKeyReport_16 & 0x00FF);
 
   sendReport(&_mediaKeyReport);
-  return 1;
-}
-
-// release() takes the specified key out of the persistent key report and
-// sends the report.  This tells the OS the key is no longer pressed and that
-// it shouldn't be repeated any more.
-size_t BleKeyboard::release(uint8_t k) {
-  uint8_t i;
-  if (k >= 136) { // it's a non-printing key (not a modifier)
-    k = k - 136;
-  } else if (k >= 128) { // it's a modifier key
-    _keyReport.modifiers &= ~(1 << (k - 128));
-    k = 0;
-  } else { // it's a printing key
-    k = pgm_read_byte(_asciimap + k);
-    if (!k) {
-      return 0;
-    }
-    if (k &
-        0x80) { // it's a capital letter or other character reached with shift
-      _keyReport.modifiers &= ~(0x02); // the left shift modifier
-      k &= 0x7F;
-    }
-  }
-
-  // Test the key report to see if k is present.  Clear it if it exists.
-  // Check all positions in case the key is present more than once (which it
-  // shouldn't be)
-  for (i = 0; i < 6; i++) {
-    if (0 != k && _keyReport.keys[i] == k) {
-      _keyReport.keys[i] = 0x00;
-    }
-  }
-
-  sendReport(&_keyReport);
   return 1;
 }
 
@@ -477,33 +250,11 @@ void BleKeyboard::releaseAll(void) {
   sendReport(&_mediaKeyReport);
 }
 
-size_t BleKeyboard::write(uint8_t c) {
-  uint8_t p = press(c); // Keydown
-  release(c);           // Keyup
-  return p; // just return the result of press() since release() almost always
-            // returns 1
-}
-
 size_t BleKeyboard::write(const MediaKeyReport c) {
   uint16_t p = press(c); // Keydown
   release(c);            // Keyup
   return p; // just return the result of press() since release() almost always
             // returns 1
-}
-
-size_t BleKeyboard::write(const uint8_t *buffer, size_t size) {
-  size_t n = 0;
-  while (size--) {
-    if (*buffer != '\r') {
-      if (write(*buffer)) {
-        n++;
-      } else {
-        break;
-      }
-    }
-    buffer++;
-  }
-  return n;
 }
 
 void BleKeyboard::onConnect(BLEServer *pServer) {
@@ -513,7 +264,6 @@ void BleKeyboard::onConnect(BLEServer *pServer) {
   esp_pm_lock_acquire(s_pm_lock);
   pServer->advertiseOnDisconnect(true);
 
-#if defined(USE_NIMBLE)
   // Stop advertising so no other device can connect while we're connected
   advertising->stop();
   // Delay connection parameter update to avoid racing with encryption and
@@ -521,16 +271,6 @@ void BleKeyboard::onConnect(BLEServer *pServer) {
   // Passed" disconnects).
   if (s_conn_param_timer)
     xTimerStart(s_conn_param_timer, 0);
-#else
-
-  BLE2902 *desc = (BLE2902 *)this->inputKeyboard->getDescriptorByUUID(
-      BLEUUID((uint16_t)0x2902));
-  desc->setNotifications(true);
-  desc = (BLE2902 *)this->inputMediaKeys->getDescriptorByUUID(
-      BLEUUID((uint16_t)0x2902));
-  desc->setNotifications(true);
-
-#endif // USE_NIMBLE
 }
 
 void BleKeyboard::onDisconnect(BLEServer *pServer) {
@@ -556,19 +296,6 @@ void BleKeyboard::onDisconnect(BLEServer *pServer, ble_gap_conn_desc *desc) {
   Debugf("  encrypted=%d authenticated=%d bonded=%d\n",
          desc->sec_state.encrypted, desc->sec_state.authenticated,
          desc->sec_state.bonded);
-
-#if !defined(USE_NIMBLE)
-
-  BLE2902 *desc2 = (BLE2902 *)this->inputKeyboard->getDescriptorByUUID(
-      BLEUUID((uint16_t)0x2902));
-  desc2->setNotifications(false);
-  desc2 = (BLE2902 *)this->inputMediaKeys->getDescriptorByUUID(
-      BLEUUID((uint16_t)0x2902));
-  desc2->setNotifications(false);
-
-  advertising->start();
-
-#endif // !USE_NIMBLE
 }
 
 void BleKeyboard::onWrite(BLECharacteristic *me) {
@@ -584,4 +311,375 @@ void BleKeyboard::onStatus(BLECharacteristic *pCharacteristic, Status s,
   // can proceed.
   if (_txSem)
     xSemaphoreGive(_txSem);
+}
+
+void BleKeyboard::Setup() {
+  setName("𝖒𝖆𝖋.🎹");
+  begin();
+
+  wakeup_timer_ = xTimerCreate("BleKeyboardWakeup", kMinInterval, pdFALSE, this,
+                               [](TimerHandle_t) {
+                                 RunOnMain(
+                                     [](uint64_t) {
+                                       ble_keyboard.is_timer_scheduled_ = false;
+                                       ble_keyboard.Wakeup();
+                                     },
+                                     0);
+                               });
+
+  is_buffered_free = xSemaphoreCreateBinary();
+  xSemaphoreGive(is_buffered_free);
+
+  int num_bonds = NimBLEDevice::getNumBonds();
+  Debugf("> %d bonded device(s):\n", num_bonds);
+  for (int i = 0; i < num_bonds; i++) {
+    auto addr = NimBLEDevice::getBondedAddress(i);
+    Debugf(">   %d: %s\n", i, addr.toString().c_str());
+  }
+}
+
+void BleKeyboard::Wakeup() {
+  TickType_t now = xTaskGetTickCount();
+  TickType_t elapsed = now - last_send_time_;
+
+  if (elapsed >= kMinInterval) {
+
+    sendReport(&buffered_);
+
+    last_send_time_ = now;
+    // Debugf("Sent report: modifiers=0x%02x keys=[%s %s %s %s %s %s]\n",
+    //        buffered_.modifiers, ToStr((HID_Key)buffered_.keys[0]),
+    //        ToStr((HID_Key)buffered_.keys[1]),
+    //        ToStr((HID_Key)buffered_.keys[2]),
+    //        ToStr((HID_Key)buffered_.keys[3]),
+    //        ToStr((HID_Key)buffered_.keys[4]),
+    //        ToStr((HID_Key)buffered_.keys[5]));
+    for (int i = 0; i < 256; ++i) {
+      if (buffered_release.test(i) && !buffered_.Contains((HID_Key)i)) {
+        buffered_release.reset(i);
+      }
+    }
+    buffered_ = {};
+
+    if (buffered_release.any()) {
+      is_timer_scheduled_ = true;
+      xTimerChangePeriod(wakeup_timer_, kMinInterval, 0);
+      xTimerStart(wakeup_timer_, 1);
+    }
+    xSemaphoreGive(is_buffered_free);
+  } else if (!is_timer_scheduled_) {
+    is_timer_scheduled_ = true;
+    xTimerChangePeriod(wakeup_timer_, kMinInterval - elapsed, 0);
+    xTimerStart(wakeup_timer_, 1);
+  } else {
+    // Timer is already scheduled.
+  }
+}
+
+void BleKeyboard::SendUnicode(uint32_t codepoint, Modifier mods) {
+  if (!IsConnected())
+    return;
+
+  // Polish characters via AltGr
+  char base = GetOgonekBase(codepoint);
+  if (base != 0) {
+    mods |= MOD_RIGHT_ALT;
+    codepoint = (uint8_t)base;
+  }
+
+  HID_Key ibm_key;
+  switch (codepoint) {
+  case '\b':
+    ibm_key = HID_Key::BACKSPACE;
+    break;
+  case '\n':
+  case '\r':
+    ibm_key = HID_Key::ENTER;
+    break;
+  case '\t':
+    ibm_key = HID_Key::TAB;
+    break;
+  case 0x1b:
+    ibm_key = HID_Key::ESC;
+    break;
+  case ' ':
+    ibm_key = HID_Key::SPACE;
+    break;
+  case '!':
+    mods |= MOD_SHIFT;
+  case '1': // Fallthrough
+    ibm_key = HID_Key::NUMBER_1;
+    break;
+  case '@':
+    mods |= MOD_SHIFT;
+  case '2': // Fallthrough
+    ibm_key = HID_Key::NUMBER_2;
+    break;
+  case '#':
+    mods |= MOD_SHIFT;
+  case '3': // Fallthrough
+    ibm_key = HID_Key::NUMBER_3;
+    break;
+  case '$':
+    mods |= MOD_SHIFT;
+  case '4': // Fallthrough
+    ibm_key = HID_Key::NUMBER_4;
+    break;
+  case '%':
+    mods |= MOD_SHIFT;
+  case '5': // Fallthrough
+    ibm_key = HID_Key::NUMBER_5;
+    break;
+  case '^':
+    mods |= MOD_SHIFT;
+  case '6': // Fallthrough
+    ibm_key = HID_Key::NUMBER_6;
+    break;
+  case '&':
+    mods |= MOD_SHIFT;
+  case '7': // Fallthrough
+    ibm_key = HID_Key::NUMBER_7;
+    break;
+  case '*':
+    mods |= MOD_SHIFT;
+  case '8': // Fallthrough
+    ibm_key = HID_Key::NUMBER_8;
+    break;
+  case '(':
+    mods |= MOD_SHIFT;
+  case '9': // Fallthrough
+    ibm_key = HID_Key::NUMBER_9;
+    break;
+  case ')':
+    mods |= MOD_SHIFT;
+  case '0': // Fallthrough
+    ibm_key = HID_Key::NUMBER_0;
+    break;
+  case '_':
+    mods |= MOD_SHIFT;
+  case '-': // Fallthrough
+    ibm_key = HID_Key::MINUS;
+    break;
+  case '+':
+    mods |= MOD_SHIFT;
+  case '=': // Fallthrough
+    ibm_key = HID_Key::EQUALS;
+    break;
+  case 'Q':
+    mods |= MOD_SHIFT;
+  case 'q': // Fallthrough
+    ibm_key = HID_Key::LETTER_Q;
+    break;
+  case 'W':
+    mods |= MOD_SHIFT;
+  case 'w': // Fallthrough
+    ibm_key = HID_Key::LETTER_W;
+    break;
+  case 'E':
+    mods |= MOD_SHIFT;
+  case 'e': // Fallthrough
+    ibm_key = HID_Key::LETTER_E;
+    break;
+  case 'R':
+    mods |= MOD_SHIFT;
+  case 'r': // Fallthrough
+    ibm_key = HID_Key::LETTER_R;
+    break;
+  case 'T':
+    mods |= MOD_SHIFT;
+  case 't': // Fallthrough
+    ibm_key = HID_Key::LETTER_T;
+    break;
+  case 'Y':
+    mods |= MOD_SHIFT;
+  case 'y': // Fallthrough
+    ibm_key = HID_Key::LETTER_Y;
+    break;
+  case 'U':
+    mods |= MOD_SHIFT;
+  case 'u': // Fallthrough
+    ibm_key = HID_Key::LETTER_U;
+    break;
+  case 'I':
+    mods |= MOD_SHIFT;
+  case 'i': // Fallthrough
+    ibm_key = HID_Key::LETTER_I;
+    break;
+  case 'O':
+    mods |= MOD_SHIFT;
+  case 'o': // Fallthrough
+    ibm_key = HID_Key::LETTER_O;
+    break;
+  case 'P':
+    mods |= MOD_SHIFT;
+  case 'p': // Fallthrough
+    ibm_key = HID_Key::LETTER_P;
+    break;
+  case '{':
+    mods |= MOD_SHIFT;
+  case '[': // Fallthrough
+    ibm_key = HID_Key::LEFT_BRACKET;
+    break;
+  case '}':
+    mods |= MOD_SHIFT;
+  case ']': // Fallthrough
+    ibm_key = HID_Key::RIGHT_BRACKET;
+    break;
+  case '|':
+    mods |= MOD_SHIFT;
+  case '\\': // Fallthrough
+    ibm_key = HID_Key::BACKSLASH;
+    break;
+  case 'A':
+    mods |= MOD_SHIFT;
+  case 'a': // Fallthrough
+    ibm_key = HID_Key::LETTER_A;
+    break;
+  case 'S':
+    mods |= MOD_SHIFT;
+  case 's': // Fallthrough
+    ibm_key = HID_Key::LETTER_S;
+    break;
+  case 'D':
+    mods |= MOD_SHIFT;
+  case 'd': // Fallthrough
+    ibm_key = HID_Key::LETTER_D;
+    break;
+  case 'F':
+    mods |= MOD_SHIFT;
+  case 'f': // Fallthrough
+    ibm_key = HID_Key::LETTER_F;
+    break;
+  case 'G':
+    mods |= MOD_SHIFT;
+  case 'g': // Fallthrough
+    ibm_key = HID_Key::LETTER_G;
+    break;
+  case 'H':
+    mods |= MOD_SHIFT;
+  case 'h': // Fallthrough
+    ibm_key = HID_Key::LETTER_H;
+    break;
+  case 'J':
+    mods |= MOD_SHIFT;
+  case 'j': // Fallthrough
+    ibm_key = HID_Key::LETTER_J;
+    break;
+  case 'K':
+    mods |= MOD_SHIFT;
+  case 'k': // Fallthrough
+    ibm_key = HID_Key::LETTER_K;
+    break;
+  case 'L':
+    mods |= MOD_SHIFT;
+  case 'l': // Fallthrough
+    ibm_key = HID_Key::LETTER_L;
+    break;
+  case ':':
+    mods |= MOD_SHIFT;
+  case ';': // Fallthrough
+    ibm_key = HID_Key::SEMICOLON;
+    break;
+  case '"':
+    mods |= MOD_SHIFT;
+  case '\'': // Fallthrough
+    ibm_key = HID_Key::APOSTROPHE;
+    break;
+  case 'Z':
+    mods |= MOD_SHIFT;
+  case 'z': // Fallthrough
+    ibm_key = HID_Key::LETTER_Z;
+    break;
+  case 'X':
+    mods |= MOD_SHIFT;
+  case 'x': // Fallthrough
+    ibm_key = HID_Key::LETTER_X;
+    break;
+  case 'C':
+    mods |= MOD_SHIFT;
+  case 'c': // Fallthrough
+    ibm_key = HID_Key::LETTER_C;
+    break;
+  case 'V':
+    mods |= MOD_SHIFT;
+  case 'v': // Fallthrough
+    ibm_key = HID_Key::LETTER_V;
+    break;
+  case 'B':
+    mods |= MOD_SHIFT;
+  case 'b': // Fallthrough
+    ibm_key = HID_Key::LETTER_B;
+    break;
+  case 'N':
+    mods |= MOD_SHIFT;
+  case 'n': // Fallthrough
+    ibm_key = HID_Key::LETTER_N;
+    break;
+  case 'M':
+    mods |= MOD_SHIFT;
+  case 'm': // Fallthrough
+    ibm_key = HID_Key::LETTER_M;
+    break;
+  case '<':
+    mods |= MOD_SHIFT;
+  case ',': // Fallthrough
+    ibm_key = HID_Key::COMMA;
+    break;
+  case '>':
+    mods |= MOD_SHIFT;
+  case '.': // Fallthrough
+    ibm_key = HID_Key::PERIOD;
+    break;
+  case '?':
+    mods |= MOD_SHIFT;
+  case '/': // Fallthrough
+    ibm_key = HID_Key::SLASH;
+    break;
+  default:
+    Debugf("Unsupported codepoint: U+%04X (%d)\n", codepoint, codepoint);
+    return;
+  }
+
+  SendKey(ibm_key, mods);
+}
+
+void BleKeyboard::SendKey(HID_Key key, Modifier mods) {
+  if (!IsConnected())
+    return;
+
+  goto try_queueing;
+
+wait_for_buffered_free:
+  xSemaphoreTake(is_buffered_free, portMAX_DELAY);
+
+try_queueing:
+  uint8_t k = (uint8_t)key;
+  int n_buffered = buffered_.Count();
+  if (n_buffered == 6) {
+    // Buffer full
+    goto wait_for_buffered_free;
+  }
+
+  if (buffered_release[k]) {
+    // Key must be released before it's pressed
+    goto wait_for_buffered_free;
+  }
+  if (buffered_.Contains(key)) {
+    // Already pressed
+    goto wait_for_buffered_free;
+  }
+
+  if (n_buffered && (buffered_.modifiers != mods)) {
+    // Can't change modifiers on already buffered keys
+    goto wait_for_buffered_free;
+  }
+
+  // Success!
+  buffered_.modifiers = mods;
+  buffered_.keys[n_buffered] = k;
+  buffered_release.set((int)key); // also mark it for release later
+
+  if (!is_timer_scheduled_) {
+    Wakeup();
+  }
 }

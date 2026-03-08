@@ -12,6 +12,10 @@ If you need to check whether a build error is pre-existing, ask the user or insp
 
 **NEVER read or access `src/secrets.cpp`** — it contains real credentials.
 
+## Design philosophy
+
+When fixing a problem or adding a feature, **prefer solutions that simplify the system** over ones that add state and complexity on top. Before implementing, ask: "Can I replace existing complexity instead of adding to it?" A good change removes code or collapses layers; a bad change adds flags and extra methods that callers must remember to invoke. Push complexity down into self-contained components (e.g. a timer-based queue that handles its own timing) rather than spreading coordination logic across callers.
+
 ## Project Overview
 
 Chording keyboard (5 fingers: Thumb/Index/Middle/Ring/Pinky) running on ESP32-S3 with BLE HID. Pinky defaults to shift modifier but individual chords can use it explicitly. The firmware includes a chording keyboard layout, an embedded Jim Tcl interpreter, SSH client with VTerm terminal emulation, and BLE HID keyboard output.

@@ -3,6 +3,12 @@
     "secrets.cpp": "secrets"
   },
   "github.copilot.enable": {
+    "*": true,
+    "plaintext": true,
+    "markdown": false,
+    "scminput": false,
+    "yaml": true,
+    "org": false,
     "secrets": false
   }
 }

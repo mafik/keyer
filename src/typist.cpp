@@ -1,6 +1,6 @@
 #include "typist.hpp"
 
-#include "app_keyboard.hpp"
+#include "ble_keyboard.hpp"
 #include "common_esp32.hpp"
 #include "main_loop.hpp"
 #include "shadow_editor.hpp"
@@ -71,7 +71,7 @@ void HandleUnicode(uint32_t codepoint, Modifier mods) {
   SendKeystroke(Keystroke::Char(codepoint, mods));
 }
 
-void HandleKey(IBM_Key key, Modifier mods) {
+void HandleKey(HID_Key key, Modifier mods) {
   if (ssh_chan) {
     auto seq = TerminalSequenceFromIBM_Key(key, mods);
     if (seq.size())

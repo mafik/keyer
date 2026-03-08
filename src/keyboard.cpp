@@ -58,7 +58,7 @@ string TerminalSequenceFromUnicode(int codepoint, Modifier mod_mask) {
   return CSI_u_sequence(codepoint, mod_mask);
 }
 
-string TerminalSequenceFromIBM_Key(IBM_Key key, Modifier mod_mask) {
+string TerminalSequenceFromIBM_Key(HID_Key key, Modifier mod_mask) {
   // Calculate modifier parameter (1-based)
   int mod_param = 1;
   if (mod_mask & MOD_SHIFT)
@@ -90,75 +90,75 @@ string TerminalSequenceFromIBM_Key(IBM_Key key, Modifier mod_mask) {
   };
 
   switch (key) {
-  case IBM_Key::ESC:
+  case HID_Key::ESC:
     return "\x1b";
 
   // Function keys
-  case IBM_Key::F1:
+  case HID_Key::F1:
     return csi_tilde_seq("1");
-  case IBM_Key::F2:
+  case HID_Key::F2:
     return csi_tilde_seq("2");
-  case IBM_Key::F3:
+  case HID_Key::F3:
     return csi_tilde_seq("3");
-  case IBM_Key::F4:
+  case HID_Key::F4:
     return csi_tilde_seq("4");
-  case IBM_Key::F5:
+  case HID_Key::F5:
     return csi_tilde_seq("5");
-  case IBM_Key::F6:
+  case HID_Key::F6:
     return csi_tilde_seq("17");
-  case IBM_Key::F7:
+  case HID_Key::F7:
     return csi_tilde_seq("18");
-  case IBM_Key::F8:
+  case HID_Key::F8:
     return csi_tilde_seq("19");
-  case IBM_Key::F9:
+  case HID_Key::F9:
     return csi_tilde_seq("20");
-  case IBM_Key::F10:
+  case HID_Key::F10:
     return csi_tilde_seq("21");
-  case IBM_Key::F11:
+  case HID_Key::F11:
     return csi_tilde_seq("23");
-  case IBM_Key::F12:
+  case HID_Key::F12:
     return csi_tilde_seq("24");
 
   // Arrow keys
-  case IBM_Key::UP_ARROW:
+  case HID_Key::UP_ARROW:
     return csi_letter_seq('A');
-  case IBM_Key::DOWN_ARROW:
+  case HID_Key::DOWN_ARROW:
     return csi_letter_seq('B');
-  case IBM_Key::RIGHT_ARROW:
+  case HID_Key::RIGHT_ARROW:
     return csi_letter_seq('C');
-  case IBM_Key::LEFT_ARROW:
+  case HID_Key::LEFT_ARROW:
     return csi_letter_seq('D');
 
   // Navigation keys
-  case IBM_Key::HOME:
+  case HID_Key::HOME:
     return csi_letter_seq('H');
-  case IBM_Key::END:
+  case HID_Key::END:
     return csi_letter_seq('F');
-  case IBM_Key::PAGE_UP:
+  case HID_Key::PAGE_UP:
     return csi_tilde_seq("5");
-  case IBM_Key::PAGE_DOWN:
+  case HID_Key::PAGE_DOWN:
     return csi_tilde_seq("6");
-  case IBM_Key::INSERT:
+  case HID_Key::INSERT:
     return csi_tilde_seq("2");
-  case IBM_Key::DELETE:
+  case HID_Key::DELETE:
     return csi_tilde_seq("3");
 
   // Special keys
-  case IBM_Key::BACKSPACE:
+  case HID_Key::BACKSPACE:
     return (mod_mask == 0) ? "\x7f" : CSI_u_sequence(127, mod_mask);
-  case IBM_Key::TAB:
+  case HID_Key::TAB:
     return (mod_mask == 0) ? "\t" : CSI_u_sequence(9, mod_mask);
-  case IBM_Key::ENTER:
+  case HID_Key::ENTER:
     return (mod_mask == 0) ? "\r" : CSI_u_sequence(13, mod_mask);
-  case IBM_Key::BACKTICK:
+  case HID_Key::BACKTICK:
     return (mod_mask == 0) ? "`" : CSI_u_sequence('`', mod_mask);
 
   // Keys without standard sequences (fallback to CSI u)
-  case IBM_Key::PRINT_SCREEN:
+  case HID_Key::PRINT_SCREEN:
     return CSI_u_sequence(0xE00A, mod_mask);
-  case IBM_Key::SCROLL_LOCK:
+  case HID_Key::SCROLL_LOCK:
     return CSI_u_sequence(0xE00B, mod_mask);
-  case IBM_Key::PAUSE_BREAK:
+  case HID_Key::PAUSE_BREAK:
     return CSI_u_sequence(0xE00C, mod_mask);
 
   default:
@@ -166,71 +166,185 @@ string TerminalSequenceFromIBM_Key(IBM_Key key, Modifier mod_mask) {
   }
 }
 
-const char *ToStr(IBM_Key key) {
+const char *ToStr(HID_Key key) {
   switch (key) {
-  case IBM_Key::ESC:
-    return "ESC";
-  case IBM_Key::F1:
-    return "F1";
-  case IBM_Key::F2:
-    return "F2";
-  case IBM_Key::F3:
-    return "F3";
-  case IBM_Key::F4:
-    return "F4";
-  case IBM_Key::F5:
-    return "F5";
-  case IBM_Key::F6:
-    return "F6";
-  case IBM_Key::F7:
-    return "F7";
-  case IBM_Key::F8:
-    return "F8";
-  case IBM_Key::F9:
-    return "F9";
-  case IBM_Key::F10:
-    return "F10";
-  case IBM_Key::F11:
-    return "F11";
-  case IBM_Key::F12:
-    return "F12";
-  case IBM_Key::PRINT_SCREEN:
-    return "PRINT_SCREEN";
-  case IBM_Key::SCROLL_LOCK:
-    return "SCROLL_LOCK";
-  case IBM_Key::PAUSE_BREAK:
-    return "PAUSE_BREAK";
-  case IBM_Key::BACKTICK:
-    return "BACKTICK";
-  case IBM_Key::INSERT:
-    return "INSERT";
-  case IBM_Key::DELETE:
-    return "DELETE";
-  case IBM_Key::BACKSPACE:
-    return "BACKSPACE";
-  case IBM_Key::TAB:
-    return "TAB";
-  case IBM_Key::ENTER:
+  case HID_Key::NONE:
+    return "NONE";
+  case HID_Key::LETTER_A:
+    return "LETTER_A";
+  case HID_Key::LETTER_B:
+    return "LETTER_B";
+  case HID_Key::LETTER_C:
+    return "LETTER_C";
+  case HID_Key::LETTER_D:
+    return "LETTER_D";
+  case HID_Key::LETTER_E:
+    return "LETTER_E";
+  case HID_Key::LETTER_F:
+    return "LETTER_F";
+  case HID_Key::LETTER_G:
+    return "LETTER_G";
+  case HID_Key::LETTER_H:
+    return "LETTER_H";
+  case HID_Key::LETTER_I:
+    return "LETTER_I";
+  case HID_Key::LETTER_J:
+    return "LETTER_J";
+  case HID_Key::LETTER_K:
+    return "LETTER_K";
+  case HID_Key::LETTER_L:
+    return "LETTER_L";
+  case HID_Key::LETTER_M:
+    return "LETTER_M";
+  case HID_Key::LETTER_N:
+    return "LETTER_N";
+  case HID_Key::LETTER_O:
+    return "LETTER_O";
+  case HID_Key::LETTER_P:
+    return "LETTER_P";
+  case HID_Key::LETTER_Q:
+    return "LETTER_Q";
+  case HID_Key::LETTER_R:
+    return "LETTER_R";
+  case HID_Key::LETTER_S:
+    return "LETTER_S";
+  case HID_Key::LETTER_T:
+    return "LETTER_T";
+  case HID_Key::LETTER_U:
+    return "LETTER_U";
+  case HID_Key::LETTER_V:
+    return "LETTER_V";
+  case HID_Key::LETTER_W:
+    return "LETTER_W";
+  case HID_Key::LETTER_X:
+    return "LETTER_X";
+  case HID_Key::LETTER_Y:
+    return "LETTER_Y";
+  case HID_Key::LETTER_Z:
+    return "LETTER_Z";
+  case HID_Key::NUMBER_1:
+    return "NUMBER_1";
+  case HID_Key::NUMBER_2:
+    return "NUMBER_2";
+  case HID_Key::NUMBER_3:
+    return "NUMBER_3";
+  case HID_Key::NUMBER_4:
+    return "NUMBER_4";
+  case HID_Key::NUMBER_5:
+    return "NUMBER_5";
+  case HID_Key::NUMBER_6:
+    return "NUMBER_6";
+  case HID_Key::NUMBER_7:
+    return "NUMBER_7";
+  case HID_Key::NUMBER_8:
+    return "NUMBER_8";
+  case HID_Key::NUMBER_9:
+    return "NUMBER_9";
+  case HID_Key::NUMBER_0:
+    return "NUMBER_0";
+  case HID_Key::ENTER:
     return "ENTER";
-  case IBM_Key::UP_ARROW:
-    return "UP_ARROW";
-  case IBM_Key::RIGHT_ARROW:
-    return "RIGHT_ARROW";
-  case IBM_Key::DOWN_ARROW:
-    return "DOWN_ARROW";
-  case IBM_Key::LEFT_ARROW:
-    return "LEFT_ARROW";
-  case IBM_Key::PAGE_UP:
-    return "PAGE_UP";
-  case IBM_Key::PAGE_DOWN:
-    return "PAGE_DOWN";
-  case IBM_Key::HOME:
+  case HID_Key::ESC:
+    return "ESC";
+  case HID_Key::BACKSPACE:
+    return "BACKSPACE";
+  case HID_Key::TAB:
+    return "TAB";
+  case HID_Key::SPACE:
+    return "SPACE";
+  case HID_Key::MINUS:
+    return "MINUS";
+  case HID_Key::EQUALS:
+    return "EQUALS";
+  case HID_Key::LEFT_BRACKET:
+    return "LEFT_BRACKET";
+  case HID_Key::RIGHT_BRACKET:
+    return "RIGHT_BRACKET";
+  case HID_Key::BACKSLASH:
+    return "BACKSLASH";
+  case HID_Key::SEMICOLON:
+    return "SEMICOLON";
+  case HID_Key::APOSTROPHE:
+    return "APOSTROPHE";
+  case HID_Key::BACKTICK:
+    return "BACKTICK";
+  case HID_Key::COMMA:
+    return "COMMA";
+  case HID_Key::PERIOD:
+    return "PERIOD";
+  case HID_Key::SLASH:
+    return "SLASH";
+  case HID_Key::CAPS_LOCK:
+    return "CAPS_LOCK";
+  case HID_Key::F1:
+    return "F1";
+  case HID_Key::F2:
+    return "F2";
+  case HID_Key::F3:
+    return "F3";
+  case HID_Key::F4:
+    return "F4";
+  case HID_Key::F5:
+    return "F5";
+  case HID_Key::F6:
+    return "F6";
+  case HID_Key::F7:
+    return "F7";
+  case HID_Key::F8:
+    return "F8";
+  case HID_Key::F9:
+    return "F9";
+  case HID_Key::F10:
+    return "F10";
+  case HID_Key::F11:
+    return "F11";
+  case HID_Key::F12:
+    return "F12";
+  case HID_Key::PRINT_SCREEN:
+    return "PRINT_SCREEN";
+  case HID_Key::SCROLL_LOCK:
+    return "SCROLL_LOCK";
+  case HID_Key::PAUSE_BREAK:
+    return "PAUSE_BREAK";
+  case HID_Key::INSERT:
+    return "INSERT";
+  case HID_Key::HOME:
     return "HOME";
-  case IBM_Key::END:
+  case HID_Key::PAGE_UP:
+    return "PAGE_UP";
+  case HID_Key::DELETE:
+    return "DELETE";
+  case HID_Key::END:
     return "END";
+  case HID_Key::PAGE_DOWN:
+    return "PAGE_DOWN";
+  case HID_Key::RIGHT_ARROW:
+    return "RIGHT_ARROW";
+  case HID_Key::LEFT_ARROW:
+    return "LEFT_ARROW";
+  case HID_Key::DOWN_ARROW:
+    return "DOWN_ARROW";
+  case HID_Key::UP_ARROW:
+    return "UP_ARROW";
+  case HID_Key::LEFT_CTRL:
+    return "LEFT_CTRL";
+  case HID_Key::LEFT_SHIFT:
+    return "LEFT_SHIFT";
+  case HID_Key::LEFT_ALT:
+    return "LEFT_ALT";
+  case HID_Key::LEFT_SUPER:
+    return "LEFT_SUPER";
+  case HID_Key::RIGHT_CTRL:
+    return "RIGHT_CTRL";
+  case HID_Key::RIGHT_SHIFT:
+    return "RIGHT_SHIFT";
+  case HID_Key::RIGHT_ALT:
+    return "RIGHT_ALT";
+  case HID_Key::RIGHT_SUPER:
+    return "RIGHT_SUPER";
   default: {
     static char buf[50];
-    snprintf(buf, sizeof(buf), "IBM_Key(%d)", (int)key);
+    snprintf(buf, sizeof(buf), "HID_Key(%d)", (int)key);
     return buf;
   }
   }
@@ -271,15 +385,24 @@ uint32_t ApplyShift(uint32_t c) {
       return shifted[i];
   // Polish ogoneks
   switch (c) {
-  case U'ą': return U'Ą';
-  case U'ć': return U'Ć';
-  case U'ę': return U'Ę';
-  case U'ł': return U'Ł';
-  case U'ń': return U'Ń';
-  case U'ó': return U'Ó';
-  case U'ś': return U'Ś';
-  case U'ź': return U'Ź';
-  case U'ż': return U'Ż';
+  case U'ą':
+    return U'Ą';
+  case U'ć':
+    return U'Ć';
+  case U'ę':
+    return U'Ę';
+  case U'ł':
+    return U'Ł';
+  case U'ń':
+    return U'Ń';
+  case U'ó':
+    return U'Ó';
+  case U'ś':
+    return U'Ś';
+  case U'ź':
+    return U'Ź';
+  case U'ż':
+    return U'Ż';
   }
   return c;
 }

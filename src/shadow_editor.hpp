@@ -34,12 +34,12 @@ struct EditorState {
 // A single keystroke that can be sent via BLE.
 // Either a raw IBM key or a unicode character, with optional modifiers.
 struct Keystroke {
-  IBM_Key key = IBM_Key::NONE; // Non-NONE for raw key presses
+  HID_Key key = HID_Key::NONE; // Non-NONE for raw key presses
   uint32_t codepoint = 0;      // Non-zero for unicode character input
   Modifier mods = 0;
 
-  bool IsNone() const { return key == IBM_Key::NONE && codepoint == 0; }
-  bool IsKey() const { return key != IBM_Key::NONE; }
+  bool IsNone() const { return key == HID_Key::NONE && codepoint == 0; }
+  bool IsKey() const { return key != HID_Key::NONE; }
   bool IsChar() const { return codepoint != 0; }
 
   bool operator==(const Keystroke &o) const {
@@ -47,9 +47,9 @@ struct Keystroke {
   }
   bool operator!=(const Keystroke &o) const { return !(*this == o); }
 
-  static Keystroke Key(IBM_Key k, Modifier m = 0) { return {k, 0, m}; }
+  static Keystroke Key(HID_Key k, Modifier m = 0) { return {k, 0, m}; }
   static Keystroke Char(uint32_t cp, Modifier m = 0) {
-    return {IBM_Key::NONE, cp, m};
+    return {HID_Key::NONE, cp, m};
   }
   static Keystroke None() { return {}; }
 };
