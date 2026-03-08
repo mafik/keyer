@@ -1,5 +1,6 @@
 #include "BleKeyboard.h"
 #include "common_esp32.hpp"
+#include <freertos/timers.h>
 
 #if defined(USE_NIMBLE)
 #include <NimBLEDevice.h>
@@ -19,6 +20,16 @@
 #include <esp_pm.h>
 
 static esp_pm_lock_handle_t s_pm_lock = nullptr;
+static TimerHandle_t s_conn_param_timer = nullptr;
+
+static void connParamTimerCb(TimerHandle_t xTimer) {
+  auto *pServer = NimBLEDevice::getServer();
+  if (!pServer || pServer->getConnectedCount() == 0)
+    return;
+  auto handle = pServer->getPeerInfo(0).getConnHandle();
+  // interval 7.5ms (6 units), latency 4, supervision timeout 2s
+  pServer->updateConnParams(handle, 6, 6, 4, 200);
+}
 
 #if defined(CONFIG_ARDUHAL_ESP_LOG)
 #include "esp32-hal-log.h"
@@ -154,6 +165,9 @@ void BleKeyboard::begin(void) {
   hid->setBatteryLevel(batteryLevel);
 
   esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "ble_connected", &s_pm_lock);
+
+  s_conn_param_timer = xTimerCreate("conn_param", pdMS_TO_TICKS(2000), pdFALSE,
+                                    nullptr, connParamTimerCb);
 
   _txSem = xSemaphoreCreateBinary();
   xSemaphoreGive(_txSem); // start as available
@@ -502,11 +516,11 @@ void BleKeyboard::onConnect(BLEServer *pServer) {
 #if defined(USE_NIMBLE)
   // Stop advertising so no other device can connect while we're connected
   advertising->stop();
-  // Request connection parameters tolerant of brief packet loss:
-  //   interval 7.5–20ms, latency 4 (can skip 4 events = up to 80ms silence),
-  //   supervision timeout 2s (must be > (1+latency)*maxInterval*2 = 200ms)
-  pServer->updateConnParams(pServer->getPeerInfo(0).getConnHandle(), 6, 16, 4,
-                            200);
+  // Delay connection parameter update to avoid racing with encryption and
+  // GATT discovery (immediate updateConnParams causes HCI 0x28 "Instant
+  // Passed" disconnects).
+  if (s_conn_param_timer)
+    xTimerStart(s_conn_param_timer, 0);
 #else
 
   BLE2902 *desc = (BLE2902 *)this->inputKeyboard->getDescriptorByUUID(
@@ -522,6 +536,8 @@ void BleKeyboard::onConnect(BLEServer *pServer) {
 void BleKeyboard::onDisconnect(BLEServer *pServer) {
   this->connected = false;
   esp_pm_lock_release(s_pm_lock);
+  if (s_conn_param_timer)
+    xTimerStop(s_conn_param_timer, 0);
 }
 
 void BleKeyboard::onDisconnect(BLEServer *pServer, ble_gap_conn_desc *desc) {
