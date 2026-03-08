@@ -2,7 +2,7 @@
 
 #include "app_keyboard.hpp"
 #include "common_esp32.hpp"
-#include "forth.hpp"
+#include "tcl.hpp"
 #include "keyer.hpp"
 #include "main_loop.hpp"
 #include "typist.hpp"
@@ -40,8 +40,8 @@ void setup() {
   DebugHeap("after-BLE-Setup");
   InitTypist();
   DebugHeap("after-InitTypist");
-  ForthInit();
-  DebugHeap("after-ForthInit");
+  TclInit();
+  DebugHeap("after-TclInit");
 }
 
 void loop() {

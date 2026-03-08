@@ -14,7 +14,7 @@ If you need to check whether a build error is pre-existing, ask the user or insp
 
 ## Project Overview
 
-Chording keyboard (5 fingers: Thumb/Index/Middle/Ring/Pinky) running on ESP32-S3 with BLE HID. Pinky defaults to shift modifier but individual chords can use it explicitly. The firmware includes a chording keyboard layout, an embedded Forth interpreter (ueforth), SSH client with VTerm terminal emulation, and BLE HID keyboard output.
+Chording keyboard (5 fingers: Thumb/Index/Middle/Ring/Pinky) running on ESP32-S3 with BLE HID. Pinky defaults to shift modifier but individual chords can use it explicitly. The firmware includes a chording keyboard layout, an embedded Jim Tcl interpreter, SSH client with VTerm terminal emulation, and BLE HID keyboard output.
 
 **Board**: ESP32-S3 with 16MB flash, PSRAM, custom board definition `EyeTerm` in `boards/`
 **Framework**: Arduino + ESP-IDF (dual framework)
@@ -29,7 +29,7 @@ keyer.cpp (buttons) → HandleUnicode/HandleKey (typist.cpp) → ShadowEditor �
 ```
 
 ### Boot flow
-1. `setup()` in `eye_term.cpp` → `InitESP32()` → `InitMainLoop()` → `InitKeyer()` → `ble_keyboard.Setup()` → `InitTypist()` → `ForthInit()`
+1. `setup()` in `eye_term.cpp` → `InitESP32()` → `InitMainLoop()` → `InitKeyer()` → `ble_keyboard.Setup()` → `InitTypist()` → `TclInit()`
 2. `loop()` runs `MainLoopNonBlocking()` repeatedly, then `ble_keyboard.Loop()`
 
 ### Key source files
@@ -40,10 +40,8 @@ keyer.cpp (buttons) → HandleUnicode/HandleKey (typist.cpp) → ShadowEditor �
 | `src/typist.hpp` | Declares InitTypist, HandleUnicode, HandleKey, SendKeystroke, WakeTypist |
 | `src/shadow_editor.hpp` | ShadowEditor, EditorState, Keystroke, ApplyKeystroke, AlignLines |
 | `src/shadow_editor.cpp` | ShadowEditor implementation (desktop-testable, no ESP32 deps) |
-| `src/forth.cpp` | Forth VM integration, SSH opcode, ForthEvalInPlace |
-| `src/forth.hpp` | Declares ForthInit |
-| `src/forth_boot.fs` | Forth boot source — edit this, regenerate forth_boot.h |
-| `src/forth_boot.h` | **Generated** from forth_boot.fs — never edit directly |
+| `src/tcl.cpp` | Jim Tcl integration, SSH command, TclEvalInPlace |
+| `src/tcl.hpp` | Declares TclInit |
 | `src/keyer.cpp` | Chord detection, layout, RegisterChord API |
 | `src/keyboard.cpp` | Keyboard utilities: terminal sequences, ApplyShift, GetOgonekBase |
 | `src/app_keyboard.hpp` | BLE HID keyboard — global `ble_keyboard` instance |
@@ -51,7 +49,7 @@ keyer.cpp (buttons) → HandleUnicode/HandleKey (typist.cpp) → ShadowEditor �
 | `src/ssh.cpp` | SSH client, VTerm terminal emulation, persistent background task |
 | `src/ssh.hpp` | SSH interface: ssh_chan, StartSSHSession() |
 | `src/common_esp32.cpp` | Platform init, battery monitoring, Debugf() |
-| `platformio.ini` | Build config — note `lib_ignore = ueforth` (we include headers directly) |
+| `platformio.ini` | Build config |
 
 ### ShadowEditor & Typist architecture
 - `ShadowEditor` tracks two `EditorState`s: `current` (what's on host screen) and `target` (desired state)
@@ -60,7 +58,7 @@ keyer.cpp (buttons) → HandleUnicode/HandleKey (typist.cpp) → ShadowEditor �
 - If busy (typist catching up): keystroke only updates target, typist task wakes
 - Typist FreeRTOS task (4KB stack, core 1, priority 3) calls `editor.NextKeystroke()` to get one keystroke at a time, sends via BLE with 20ms rate limiting
 - `NextKeystroke` uses LCS-based line alignment + character-level prefix/suffix diffing
-- Forth eval and SSH update `editor.target` directly, then call `WakeTypist()`
+- Tcl eval and SSH update `editor.target` directly, then call `WakeTypist()`
 - Shift resolution: `HandleUnicode` calls `ApplyShift()` (in keyboard.cpp) to resolve shifted characters before creating Keystrokes, so the editor tracks what the host displays
 
 ### Keyboard event routing (typist.cpp)
@@ -70,61 +68,48 @@ keyer.cpp (buttons) → HandleUnicode/HandleKey (typist.cpp) → ShadowEditor �
 - Otherwise: resolves shift, sends through ShadowEditor → BLE
 
 ### SSH architecture
-- `ssh` is a Forth opcode that calls `StartSSHSession()`
+- `ssh` is a Tcl command that calls `StartSSHSession()`
 - Persistent FreeRTOS task (24KB stack, core 1) waits on a semaphore
 - `StartSSHSession()` gives the semaphore, task wakes up and runs one SSH session
 - SSH output → VTerm (40×16) → `UpdateEditorFromVTerm()` copies screen into `editor.target` → typist incrementally updates host
 - Keyboard input during SSH → `HandleUnicode/HandleKey` → `ssh_channel_write` on main thread
 - Status messages use `SetStatusMessage()` which sets `editor.target` to a single line
 
-### Forth integration architecture
+### Jim Tcl integration architecture
 
-The Forth VM (ueforth) is embedded directly — not as a library, but by `#include`ing its `.h` files into `forth.cpp` with custom `PLATFORM_OPCODE_LIST` and `VOCABULARY_LIST` macros.
+Jim Tcl (https://github.com/msteveb/jimtcl) is embedded as a library in `lib/jimtcl/`. The C sources are compiled directly via `src/CMakeLists.txt` SRCS list (PlatformIO's LDF doesn't work with the dual arduino+espidf framework for custom libs).
 
-**Boot sequence:**
-1. `ForthInit()` mounts SPIFFS, allocates 64KB heap (PSRAM preferred), calls `forth_init()` + `forth_run()`
-2. Boot source (forth_boot.fs) loads phase1+allocation+phase2+filetools, sets up I/O and vocabularies
-3. Boot source ends with `forth-yield` — a custom opcode that makes `forth_run()` return
-4. After boot, `interpret0` (`begin +evaluate1 again`) is running and paused via yield
-5. Each `ForthEval()` call resumes interpret0 with new TIB text + trailing `forth-yield`
+**Init sequence:**
+1. `TclInit()` mounts SPIFFS, redirects stdout to typist (see below), creates interpreter via `Jim_CreateInterp()` + `Jim_RegisterCoreCommands()`
+2. Registers custom commands: `ssh`, `heap`
+3. Sources `/spiffs/init.tcl` if it exists (for user customizations)
+4. Registers chord handlers
 
-**Custom opcodes:**
-- `FORTH-YIELD` — `PARK; return rp` — yields from forth_run back to C++
-- `CAPTURE-TYPE` — appends output to `forth_capture_buf` string
-- `SSH` — calls `StartSSHSession()` to launch SSH on background task
-- `REQUIRED_FILES_SUPPORT` — full POSIX file I/O (open/read/write/close/etc.)
-- Standard memory opcodes (malloc, heap_caps_*, etc.)
+**stdout redirect:**
+`stdout` is permanently replaced (via `funopen()`) with a custom `FILE*` whose write function appends to `editor.target` and calls `WakeTypist()`. This means `puts`, `printf`, and any C code writing to stdout will output through BLE keyboard. `Debugf`/`Serial` is unaffected — it writes to UART directly. The redirect is set up once during `TclInit()` and stays active for the lifetime of the process.
 
-**Safe evaluate1:**
-The stock `evaluate1` returns NULL on unfound words → UNPARK from NULL → crash. Our replacement skips unfound words and logs them via Debugf. This only matters during the initial C-level `EVALUATE1/BRANCH` boot loop (before `interpret0` takes over at boot.fs:105).
+**Custom Tcl commands:**
+- `ssh` — calls `StartSSHSession()` to launch SSH on background task
+- `heap` — returns heap debug info string
 
-**ForthEval:**
-- Appends ` forth-yield` to user input
-- Saves/restores TIB state (tib, ntib, tin)
-- Captures output via `forth_capture_buf` → `CAPTURE-TYPE` opcode
-- Returns captured output as std::string
-
-**Dictionary save/restore:**
-- SPIFFS mounted at `/spiffs/` (3.4MB partition in default_16MB.csv)
-- `filetools.fs` provides `save-name` / `restore-name` words
-- `setup-saving-base` allocates space for the save checkpoint
-- On boot, `ForthRestore()` checks for `/spiffs/forth.dat` and restores if present
-- User saves with: `s" /spiffs/forth.dat" save-name` (via ForthEval)
+**TclEval:**
+- Calls `Jim_Eval()` with the script text
+- Returns `Jim_GetResult()` as std::string
+- On error (JIM_ERR), prefixes result with "ERROR: "
 
 **Chord handler:**
-- Chord 2102/mod0 → ForthEvalInPlace: manipulates `editor.target` directly — truncates old output after cursor, evaluates code before cursor via `ForthEval`, appends output to target row, calls `WakeTypist()`. The typist incrementally updates the host display.
+- Chord 2102/mod0 → TclEvalInPlace: manipulates `editor.target` directly — truncates old output after cursor, evaluates code before cursor via `TclEval`, appends output to target row, calls `WakeTypist()`. The typist incrementally updates the host display.
 - Chord 1102/mod0 → DebugDumpEditor: dumps ShadowEditor state (current + target) via serial for diagnostics.
 
-**Error handling (safe-notfound):**
-- Boot source overrides `'notfound` with `safe-notfound` which prints `ERROR: <word> NOT FOUND!` instead of calling `throw`. This prevents crashes from unknown words during ForthEval (since `interpret0` has no `catch` handler on the stack).
+**Jim Tcl build notes:**
+- `lib/jimtcl/src/jimautoconf.h` — ESP32 config (replaces autoconf-generated header)
+- `lib/jimtcl/src/jim-config.h` — redirects to `jimautoconf.h`
+- `lib/jimtcl/src/_unicode_mapping.c` — generated from UnicodeData.txt (needed for UTF-8 support)
+- `lib/jimtcl/library.json` exists but is NOT used by the build (PlatformIO LDF limitation); sources listed in CMakeLists.txt instead
 
 ## Build Commands
 
 ```bash
-# Regenerate forth_boot.h from forth_boot.fs (MUST do after editing .fs)
-python3 lib/ueforth/tools/importation.py -i src/forth_boot.fs -o src/forth_boot.h \
-  -I lib/ueforth -I lib/ueforth/esp32 --name forth_boot --header cpp
-
 # Build
 pio run -e EyeTerm
 
@@ -138,28 +123,6 @@ stty -F /dev/ttyACM0 115200 raw -echo && timeout 10 cat /dev/ttyACM0
 /home/maf/.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-addr2line \
   -pfiaC -e .pio/build/EyeTerm/firmware.elf 0xADDR1 0xADDR2
 ```
-
-## Desktop Forth Test Harness
-
-There's a desktop test harness in `test_forth/` that reproduces the Forth VM without needing the ESP32. **Use this for debugging Forth boot issues** — it's orders of magnitude faster than flash-test-reflash cycles.
-
-```bash
-# Generate boot header
-python3 lib/ueforth/tools/importation.py -i test_forth/test_boot.fs -o test_forth/test_boot.h \
-  -I lib/ueforth -I lib/ueforth/esp32 --name forth_boot --header cpp
-
-# Build
-gcc -g -O0 -I lib/ueforth -I lib/ueforth/posix -I test_forth \
-  -o test_forth/test_boot test_forth/test_boot.c -lm -ldl
-
-# Run (stderr = debug, stdout = Forth output)
-./test_forth/test_boot
-
-# Debug with GDB
-gdb -batch -ex run -ex bt ./test_forth/test_boot
-```
-
-**Important:** The desktop test uses CAPTURE-TYPE writing to stdout. If output isn't visible, add `fflush(stdout)` to the CAPTURE-TYPE opcode — stdout may be buffered and a crash loses unflushed output.
 
 ## ESP32 Device Operations
 
@@ -219,11 +182,11 @@ Port is usually `/dev/ttyACM0`, sometimes `/dev/ttyACM1` after reboot.
 
 **What was tried and what happened:**
 1. `CONFIG_SPIRAM_MODE_QUAD` + `BOOT_INIT=y`: "PSRAM ID read error: 0x00ffffff" — wrong mode, chip is OPI not quad.
-2. `CONFIG_SPIRAM_MODE_OCT` + `BOOT_INIT=y`: Bootloop. IPC task stack overflow ("Stack canary watchpoint triggered (ipc1)"). After fixing IPC stack (1024→2048), Forth boot triggered INT_WDT (interrupt watchdog, 300ms timeout). After increasing INT_WDT to 2000ms AND keeping Forth heap in internal SRAM, Forth booted — but **any key press caused INT_WDT reboot**, even with `CAPS_ALLOC` (PSRAM not in malloc path). Root cause unknown.
+2. `CONFIG_SPIRAM_MODE_OCT` + `BOOT_INIT=y`: Bootloop. IPC task stack overflow ("Stack canary watchpoint triggered (ipc1)"). After fixing IPC stack (1024→2048), boot triggered INT_WDT (interrupt watchdog, 300ms timeout). After increasing INT_WDT to 2000ms, booted — but **any key press caused INT_WDT reboot**, even with `CAPS_ALLOC` (PSRAM not in malloc path). Root cause unknown.
 3. `CONFIG_SPIRAM_MODE_OCT` in sdkconfig **even with BOOT_INIT off** corrupted NVS — NimBLE couldn't persist bonding data. Required full flash erase + revert to QUAD mode.
-4. (2026-03-06) `SPIRAM_MODE_OCT` + `CAPS_ALLOC` (no malloc routing) + `BOOT_INIT=y`: PSRAM detected (8MB, self-test passed), but **TASK_WDT crash during SPIFFS `stat()` in ForthRestore**. Tried:
-   - 80/40MHz with light sleep → INT_WDT during Forth boot
-   - 240/240MHz fixed, no sleep, INT_WDT 5000ms → first boot looked OK but was actually boot-looping (TASK_WDT after "Forth: ready")
+4. (2026-03-06) `SPIRAM_MODE_OCT` + `CAPS_ALLOC` (no malloc routing) + `BOOT_INIT=y`: PSRAM detected (8MB, self-test passed), but **TASK_WDT crash during SPIFFS `stat()`**. Tried:
+   - 80/40MHz with light sleep → INT_WDT during boot
+   - 240/240MHz fixed, no sleep, INT_WDT 5000ms → first boot looked OK but was actually boot-looping (TASK_WDT)
    - 240/80MHz (freq scaling) → immediate INT_WDT
    - SPIRAM_SPEED_40M instead of 80M → same TASK_WDT crash
    - The crash happens during SPIFFS access (`stat()` call), suggesting SPI bus contention between OPI PSRAM and QIO flash
@@ -234,51 +197,11 @@ Port is usually `/dev/ttyACM0`, sometimes `/dev/ttyACM1` after reboot.
 
 **To enable PSRAM**: Must rewire buttons off GPIO 33-37. No software-only fix is possible.
 
-### Forth heap allocation
-- Uses `heap_caps_malloc(kHeapSize, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)` to keep Forth VM in fast internal SRAM.
-- Originally tried `MALLOC_CAP_SPIRAM` with malloc fallback — when PSRAM was briefly working, running Forth from PSRAM was too slow and triggered INT_WDT during boot.
-
-### ueforth boot source structure
-The stock ESP32 boot (`lib/ueforth/esp32/esp32_boot.fs`) includes:
-```
-phase1.fs → allocation.fs → bindings.fs → phase2.fs → phase_filetools.fs → platform.fs → ... → fini.fs
-```
-**Our boot only needs**: `phase1.fs` → `allocation.fs` → `phase2.fs` → `filetools.fs` → vocab setup → `forth-yield`
-
-Key files NOT in phase1/phase2:
-- `filetools.fs` — NOT in phase2.fs! It's in `phase_filetools.fs`. Must be included explicitly if you need `save-name`/`restore-name`/`setup-saving-base`.
-- `bindings.fs` — vocabulary transfers for ESP/WiFi/Wire/etc. We don't need these.
-- `platform.fs` — Serial-based type/key. We use capture-type instead.
-- `fini.fs` — calls `setup-saving-base` + `execute` (autoboot) + `ok`. We inline what we need.
-
-### The setup-saving-base crash (biggest gotcha)
-`setup-saving-base` is defined in `filetools.fs` (in the `internals` vocabulary). It uses `to saving-base` internally. The `to` word (from `locals.fs`) calls `' saving-base` at runtime (it's immediate). If `saving-base` is not in the search order, `'` calls `notfound` which does `throw`. With no `catch` handler during boot, `throw` does `0 rp!` → null dereference → LoadProhibited crash.
-
-**The fix**: Include `filetools.fs` before calling `setup-saving-base`. Without it, the word doesn't exist.
-
-### interpret0 vs evaluate1
-After boot.fs line 105 (`interpret0`), the Forth-level `+evaluate1` takes over word processing. From that point:
-- Our safe C `evaluate1` is **no longer called** — it only runs during the initial `EVALUATE1/BRANCH` C-level boot loop
-- Errors go through the Forth-level `notfound` handler
-- We override `'notfound` with `safe-notfound` in the boot source so unknown words print an error message instead of crashing (the stock `notfound` calls `throw`, which with no `catch` handler does `0 rp!` → null deref)
-
-### Vocabulary search order matters
-After phase2 finishes, `only forth definitions` runs (end of `locals.fs`). Search order = `[forth]` only. Words in `internals` are NOT findable unless you do `also internals` or `internals definitions`.
-
-Words transferred to internals (by vocabulary.fs lines 53-65): `value-bind`, `aliteral`, `+evaluate1`, `interpret0`, `notfound`, and many others. These are still callable from compiled code (xt is baked in), but not findable by name.
-
-### C++ build order issues with ueforth
-- `cell_t` is defined in `bits.h`. Any code using `cell_t` must come after `#include "bits.h"`.
-- `ResizeFile()` is referenced in REQUIRED_FILES_SUPPORT macro but the function must be defined before `core.h`/`interp.h` expand the macros. Put it between `bits.h` and `core.h`.
-- `filename`/`filename2` are static char arrays used by REQUIRED_FILES_SUPPORT opcodes. Must be declared before the macro expansion.
-- Avoid naming local variables `b2` — it's a macro in `calling.h` (`#define b2 (*(uint8_t **) &n2)`). Other reserved names: `a0`-`a7`, `b0`-`b7`, `c0`-`c7`, `n0`-`n7`, `w`.
-- The `#define evaluate1 evaluate1_stock` / `#include core.h` / `#undef evaluate1` trick renames the stock function so we can provide our own.
-
 ### SPIFFS setup
 - Partition table `default_16MB.csv` has a `spiffs` partition at offset 0xc90000, size 0x360000 (3.4MB)
 - `SPIFFS.begin(true, "/spiffs", 10)` — `true` = format on first use
 - Files are accessed via POSIX paths: `/spiffs/filename`
-- Include `"SPIFFS.h"` in forth.cpp
+- Include `"SPIFFS.h"` in tcl.cpp
 
 ### ShadowEditor desktop test
 ```bash
@@ -295,18 +218,6 @@ g++ -std=c++17 -g -O0 -I src -o test_forth/test_shadow_editor test_forth/test_sh
 - **Out-of-bounds cursor**: `EditorState::operator==` compares clamped cursor positions. The final cursor navigation in `NextKeystroke` also clamps target cursor to valid range. Without this, `target.cursor_col` past row length causes infinite RIGHT_ARROW.
 - **UP/DOWN column desync**: Host editors may clamp `cursor_col` to line length on UP/DOWN (clamping editors) or preserve a "sticky column" (VS Code, Vim). NavigateToward emits HOME before any UP/DOWN when `cursor_col != 0`, so row changes always start from column 0 — predictable in all editors.
 - **ENTER auto-indent**: Smart editors auto-indent after ENTER based on surrounding context. INSERT_LINE uses ENTER at column 0 of the next line (not end of the previous line), giving the host editor no indentation context. Exception: the append case (ENTER at end of last line) has no next line to navigate to.
-
-### Desktop test harness limitations
-- The test harness (`test_forth/`) does NOT have `REQUIRED_FILES_SUPPORT` opcodes (no `w/o`, `r/o`, file I/O). So `filetools.fs` cannot be included in the test boot source — it will crash because those words are missing. The test boot omits filetools and `setup-saving-base`.
-- Both `test_boot.fs` and `forth_boot.fs` must be kept in sync for the `safe-notfound` override and any other shared boot logic.
-
-### Forth boot source (forth_boot.fs) conventions
-- Uses `needs` directive for includes — paths are relative to the file or resolved via `-I` flags
-- Our paths use `../lib/ueforth/common/` prefix since forth_boot.fs is in `src/`
-- Must end with `forth-yield` so `forth_run()` returns control to C++
-- `' capture-type is type` — redirects Forth output through our capture mechanism
-- `nop-key` / `nop-key?` — dummy implementations since we don't use Forth's REPL input
-- Vocabulary setup block must come AFTER `filetools.fs` (if included) so `setup-saving-base` is available
 
 ### WiFi lifecycle — cleanup is critical
 - `WiFi.begin()` fails with "esp_wifi_init 257" (ESP_ERR_NO_MEM) or "Failed to deinit Wi-Fi driver (0x3001)" if WiFi wasn't properly cleaned up from a previous session.
@@ -351,6 +262,14 @@ python3 -m esptool --chip esp32s3 --port /dev/ttyACM0 --baud 921600 write_flash 
 - Switching between `CONFIG_SPIRAM_MODE_QUAD` and `CONFIG_SPIRAM_MODE_OCT` (or changing `board_build.memory_type` between `qio_opi` and `qio_qspi`) can corrupt NVS and coredump partitions.
 - Symptoms: "NVS open operation failed", "Failed to initialize NVS! Error: 261", NimBLE ESP_ERROR_CHECK abort.
 - Fix: full flash erase + reflash all images (bootloader + partitions + firmware). Then re-pair BLE.
+
+### Jim Tcl on ESP32 — build pitfalls
+- Jim Tcl sources are in `lib/jimtcl/src/` but compiled via `src/CMakeLists.txt` SRCS list (not PlatformIO LDF)
+- PlatformIO's Library Dependency Finder does NOT work for custom C libs in dual-framework (arduino+espidf) builds — the library.json is recognized but sources are never compiled or linked. Must list `.c` files directly in CMakeLists.txt.
+- `jimautoconf.h` replaces the autoconf-generated config. Must define `HAVE_LONG_LONG`, `JIM_WIDE_MIN/MAX`, `JIM_WIDE_MODIFIER`, `USE_UTF8`, `JIM_UTF8`.
+- `_unicode_mapping.c` is generated from `UnicodeData.txt` by `parse-unidata.tcl` (from Jim Tcl repo). Required for UTF-8 support. Generate with: `cd /tmp/jimtcl && tclsh parse-unidata.tcl UnicodeData.txt > _unicode_mapping.c`
+- `jim-signal.h` must be present (included by `jim-nosignal.c`)
+- `jim-win32compat.h` must be present (included by `jim.h`; no-op on non-Windows)
 
 ### lib/libvterm
 The `lib/libvterm/library.json` may need a fix for `-Werror` builds. If you see libvterm compile errors, check that file.

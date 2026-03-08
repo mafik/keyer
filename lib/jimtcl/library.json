@@ -1,0 +1,30 @@
+{
+  "name": "jimtcl",
+  "version": "0.82",
+  "description": "Jim Tcl - A small embeddable Tcl interpreter",
+  "frameworks": "*",
+  "platforms": "*",
+  "build": {
+    "srcFilter": [
+      "+<src/jim.c>",
+      "+<src/jimregexp.c>",
+      "+<src/jimiocompat.c>",
+      "+<src/jim-subcmd.c>",
+      "+<src/jim-format.c>",
+      "+<src/jim-array.c>",
+      "+<src/jim-clock.c>",
+      "+<src/jim-pack.c>",
+      "+<src/jim-nosignal.c>"
+    ],
+    "includeDir": "src",
+    "flags": [
+      "-Wno-error=stringop-truncation",
+      "-Wno-stringop-truncation",
+      "-Wno-unused-parameter",
+      "-Wno-sign-compare",
+      "-Wno-implicit-fallthrough",
+      "-Wno-format-truncation",
+      "-Wno-pointer-sign"
+    ]
+  }
+}
