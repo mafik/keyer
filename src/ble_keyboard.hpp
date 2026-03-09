@@ -50,7 +50,7 @@ struct KeyReport {
   uint8_t reserved;
   uint8_t keys[6];
 
-  bool Contains(HID_Key key) const {
+  bool Contains(HID_Key key) const volatile {
     for (int i = 0; i < 6; ++i) {
       if (keys[i] == (uint8_t)key)
         return true;
@@ -58,7 +58,7 @@ struct KeyReport {
     return false;
   }
 
-  int Count() const {
+  int Count() const volatile {
     int count = 0;
     for (int i = 0; i < 6; ++i) {
       if (keys[i] != 0)
@@ -83,23 +83,10 @@ private:
   uint8_t batteryLevel;
   bool connected = false;
   SemaphoreHandle_t _txSem = nullptr;
-  void waitForTx();
 
   uint16_t vid = 0x05ac;
   uint16_t pid = 0x820a;
   uint16_t version = 0x0210;
-
-  TickType_t last_send_time_ = 0;
-  TimerHandle_t wakeup_timer_ = nullptr;
-  bool is_timer_scheduled_ = false;
-
-  std::bitset<256> buffered_release = {};
-  KeyReport buffered_ = {};
-
-  SemaphoreHandle_t is_buffered_free = nullptr;
-
-  // Called on the main thread when the buffer can be sent.
-  void Wakeup();
 
 public:
   BleKeyboard(std::string deviceName = "ESP32 Keyboard",
@@ -107,6 +94,7 @@ public:
               uint8_t batteryLevel = 100);
   void begin(void);
   void end(void);
+  void waitForTx();
   void sendReport(KeyReport *keys);
   void sendReport(MediaKeyReport *keys);
   size_t press(const MediaKeyReport k);
@@ -121,8 +109,6 @@ public:
   void set_version(uint16_t version);
 
   void Setup();
-  void SendUnicode(uint32_t codepoint, Modifier mods);
-  void SendKey(HID_Key key, Modifier mods);
 
 protected:
   virtual void onStarted(BLEServer *pServer) {};

@@ -12,12 +12,9 @@
 #include <esp_pm.h>
 
 #include "common_esp32.hpp"
-#include "main_loop.hpp"
 
 static esp_pm_lock_handle_t s_pm_lock = nullptr;
 static TimerHandle_t s_conn_param_timer = nullptr;
-
-static constexpr TickType_t kMinInterval = pdMS_TO_TICKS(15);
 
 BleKeyboard ble_keyboard{"maf.klaw"};
 
@@ -191,13 +188,16 @@ void BleKeyboard::waitForTx() {
   // next one.  The semaphore is given back by onStatus() when the BLE stack
   // confirms the notification was sent.  Timeout guards against a lost
   // callback.
-  if (_txSem)
-    xSemaphoreTake(_txSem, pdMS_TO_TICKS(50));
+  if (_txSem) {
+    auto ret = xSemaphoreTake(_txSem, pdMS_TO_TICKS(50));
+    if (ret != pdTRUE) {
+      Debugln("waitForTx: timeout waiting for previous transmission");
+    }
+  }
 }
 
 void BleKeyboard::sendReport(KeyReport *keys) {
   if (this->IsConnected()) {
-    waitForTx();
     this->inputKeyboard->setValue((uint8_t *)keys, sizeof(KeyReport));
     this->inputKeyboard->notify();
   }
@@ -205,7 +205,6 @@ void BleKeyboard::sendReport(KeyReport *keys) {
 
 void BleKeyboard::sendReport(MediaKeyReport *keys) {
   if (this->IsConnected()) {
-    waitForTx();
     this->inputMediaKeys->setValue((uint8_t *)keys, sizeof(MediaKeyReport));
     this->inputMediaKeys->notify();
   }
@@ -306,6 +305,9 @@ void BleKeyboard::onWrite(BLECharacteristic *me) {
 
 void BleKeyboard::onStatus(BLECharacteristic *pCharacteristic, Status s,
                            int code) {
+  if (code != 0) {
+    Debugf("BleKeyboard::onStatus code=%d\n", code);
+  }
   // Called by NimBLE when a notification has been transmitted (or an
   // indication acknowledged).  Release the semaphore so the next sendReport
   // can proceed.
@@ -317,369 +319,10 @@ void BleKeyboard::Setup() {
   setName("𝖒𝖆𝖋.🎹");
   begin();
 
-  wakeup_timer_ = xTimerCreate("BleKeyboardWakeup", kMinInterval, pdFALSE, this,
-                               [](TimerHandle_t) {
-                                 RunOnMain(
-                                     [](uint64_t) {
-                                       ble_keyboard.is_timer_scheduled_ = false;
-                                       ble_keyboard.Wakeup();
-                                     },
-                                     0);
-                               });
-
-  is_buffered_free = xSemaphoreCreateBinary();
-  xSemaphoreGive(is_buffered_free);
-
   int num_bonds = NimBLEDevice::getNumBonds();
   Debugf("> %d bonded device(s):\n", num_bonds);
   for (int i = 0; i < num_bonds; i++) {
     auto addr = NimBLEDevice::getBondedAddress(i);
     Debugf(">   %d: %s\n", i, addr.toString().c_str());
-  }
-}
-
-void BleKeyboard::Wakeup() {
-  TickType_t now = xTaskGetTickCount();
-  TickType_t elapsed = now - last_send_time_;
-
-  if (elapsed >= kMinInterval) {
-
-    sendReport(&buffered_);
-
-    last_send_time_ = now;
-    // Debugf("Sent report: modifiers=0x%02x keys=[%s %s %s %s %s %s]\n",
-    //        buffered_.modifiers, ToStr((HID_Key)buffered_.keys[0]),
-    //        ToStr((HID_Key)buffered_.keys[1]),
-    //        ToStr((HID_Key)buffered_.keys[2]),
-    //        ToStr((HID_Key)buffered_.keys[3]),
-    //        ToStr((HID_Key)buffered_.keys[4]),
-    //        ToStr((HID_Key)buffered_.keys[5]));
-    for (int i = 0; i < 256; ++i) {
-      if (buffered_release.test(i) && !buffered_.Contains((HID_Key)i)) {
-        buffered_release.reset(i);
-      }
-    }
-    buffered_ = {};
-
-    if (buffered_release.any()) {
-      is_timer_scheduled_ = true;
-      xTimerChangePeriod(wakeup_timer_, kMinInterval, 0);
-      xTimerStart(wakeup_timer_, 1);
-    }
-    xSemaphoreGive(is_buffered_free);
-  } else if (!is_timer_scheduled_) {
-    is_timer_scheduled_ = true;
-    xTimerChangePeriod(wakeup_timer_, kMinInterval - elapsed, 0);
-    xTimerStart(wakeup_timer_, 1);
-  } else {
-    // Timer is already scheduled.
-  }
-}
-
-void BleKeyboard::SendUnicode(uint32_t codepoint, Modifier mods) {
-  if (!IsConnected())
-    return;
-
-  // Polish characters via AltGr
-  char base = GetOgonekBase(codepoint);
-  if (base != 0) {
-    mods |= MOD_RIGHT_ALT;
-    codepoint = (uint8_t)base;
-  }
-
-  HID_Key ibm_key;
-  switch (codepoint) {
-  case '\b':
-    ibm_key = HID_Key::BACKSPACE;
-    break;
-  case '\n':
-  case '\r':
-    ibm_key = HID_Key::ENTER;
-    break;
-  case '\t':
-    ibm_key = HID_Key::TAB;
-    break;
-  case 0x1b:
-    ibm_key = HID_Key::ESC;
-    break;
-  case ' ':
-    ibm_key = HID_Key::SPACE;
-    break;
-  case '!':
-    mods |= MOD_SHIFT;
-  case '1': // Fallthrough
-    ibm_key = HID_Key::NUMBER_1;
-    break;
-  case '@':
-    mods |= MOD_SHIFT;
-  case '2': // Fallthrough
-    ibm_key = HID_Key::NUMBER_2;
-    break;
-  case '#':
-    mods |= MOD_SHIFT;
-  case '3': // Fallthrough
-    ibm_key = HID_Key::NUMBER_3;
-    break;
-  case '$':
-    mods |= MOD_SHIFT;
-  case '4': // Fallthrough
-    ibm_key = HID_Key::NUMBER_4;
-    break;
-  case '%':
-    mods |= MOD_SHIFT;
-  case '5': // Fallthrough
-    ibm_key = HID_Key::NUMBER_5;
-    break;
-  case '^':
-    mods |= MOD_SHIFT;
-  case '6': // Fallthrough
-    ibm_key = HID_Key::NUMBER_6;
-    break;
-  case '&':
-    mods |= MOD_SHIFT;
-  case '7': // Fallthrough
-    ibm_key = HID_Key::NUMBER_7;
-    break;
-  case '*':
-    mods |= MOD_SHIFT;
-  case '8': // Fallthrough
-    ibm_key = HID_Key::NUMBER_8;
-    break;
-  case '(':
-    mods |= MOD_SHIFT;
-  case '9': // Fallthrough
-    ibm_key = HID_Key::NUMBER_9;
-    break;
-  case ')':
-    mods |= MOD_SHIFT;
-  case '0': // Fallthrough
-    ibm_key = HID_Key::NUMBER_0;
-    break;
-  case '_':
-    mods |= MOD_SHIFT;
-  case '-': // Fallthrough
-    ibm_key = HID_Key::MINUS;
-    break;
-  case '+':
-    mods |= MOD_SHIFT;
-  case '=': // Fallthrough
-    ibm_key = HID_Key::EQUALS;
-    break;
-  case 'Q':
-    mods |= MOD_SHIFT;
-  case 'q': // Fallthrough
-    ibm_key = HID_Key::LETTER_Q;
-    break;
-  case 'W':
-    mods |= MOD_SHIFT;
-  case 'w': // Fallthrough
-    ibm_key = HID_Key::LETTER_W;
-    break;
-  case 'E':
-    mods |= MOD_SHIFT;
-  case 'e': // Fallthrough
-    ibm_key = HID_Key::LETTER_E;
-    break;
-  case 'R':
-    mods |= MOD_SHIFT;
-  case 'r': // Fallthrough
-    ibm_key = HID_Key::LETTER_R;
-    break;
-  case 'T':
-    mods |= MOD_SHIFT;
-  case 't': // Fallthrough
-    ibm_key = HID_Key::LETTER_T;
-    break;
-  case 'Y':
-    mods |= MOD_SHIFT;
-  case 'y': // Fallthrough
-    ibm_key = HID_Key::LETTER_Y;
-    break;
-  case 'U':
-    mods |= MOD_SHIFT;
-  case 'u': // Fallthrough
-    ibm_key = HID_Key::LETTER_U;
-    break;
-  case 'I':
-    mods |= MOD_SHIFT;
-  case 'i': // Fallthrough
-    ibm_key = HID_Key::LETTER_I;
-    break;
-  case 'O':
-    mods |= MOD_SHIFT;
-  case 'o': // Fallthrough
-    ibm_key = HID_Key::LETTER_O;
-    break;
-  case 'P':
-    mods |= MOD_SHIFT;
-  case 'p': // Fallthrough
-    ibm_key = HID_Key::LETTER_P;
-    break;
-  case '{':
-    mods |= MOD_SHIFT;
-  case '[': // Fallthrough
-    ibm_key = HID_Key::LEFT_BRACKET;
-    break;
-  case '}':
-    mods |= MOD_SHIFT;
-  case ']': // Fallthrough
-    ibm_key = HID_Key::RIGHT_BRACKET;
-    break;
-  case '|':
-    mods |= MOD_SHIFT;
-  case '\\': // Fallthrough
-    ibm_key = HID_Key::BACKSLASH;
-    break;
-  case 'A':
-    mods |= MOD_SHIFT;
-  case 'a': // Fallthrough
-    ibm_key = HID_Key::LETTER_A;
-    break;
-  case 'S':
-    mods |= MOD_SHIFT;
-  case 's': // Fallthrough
-    ibm_key = HID_Key::LETTER_S;
-    break;
-  case 'D':
-    mods |= MOD_SHIFT;
-  case 'd': // Fallthrough
-    ibm_key = HID_Key::LETTER_D;
-    break;
-  case 'F':
-    mods |= MOD_SHIFT;
-  case 'f': // Fallthrough
-    ibm_key = HID_Key::LETTER_F;
-    break;
-  case 'G':
-    mods |= MOD_SHIFT;
-  case 'g': // Fallthrough
-    ibm_key = HID_Key::LETTER_G;
-    break;
-  case 'H':
-    mods |= MOD_SHIFT;
-  case 'h': // Fallthrough
-    ibm_key = HID_Key::LETTER_H;
-    break;
-  case 'J':
-    mods |= MOD_SHIFT;
-  case 'j': // Fallthrough
-    ibm_key = HID_Key::LETTER_J;
-    break;
-  case 'K':
-    mods |= MOD_SHIFT;
-  case 'k': // Fallthrough
-    ibm_key = HID_Key::LETTER_K;
-    break;
-  case 'L':
-    mods |= MOD_SHIFT;
-  case 'l': // Fallthrough
-    ibm_key = HID_Key::LETTER_L;
-    break;
-  case ':':
-    mods |= MOD_SHIFT;
-  case ';': // Fallthrough
-    ibm_key = HID_Key::SEMICOLON;
-    break;
-  case '"':
-    mods |= MOD_SHIFT;
-  case '\'': // Fallthrough
-    ibm_key = HID_Key::APOSTROPHE;
-    break;
-  case 'Z':
-    mods |= MOD_SHIFT;
-  case 'z': // Fallthrough
-    ibm_key = HID_Key::LETTER_Z;
-    break;
-  case 'X':
-    mods |= MOD_SHIFT;
-  case 'x': // Fallthrough
-    ibm_key = HID_Key::LETTER_X;
-    break;
-  case 'C':
-    mods |= MOD_SHIFT;
-  case 'c': // Fallthrough
-    ibm_key = HID_Key::LETTER_C;
-    break;
-  case 'V':
-    mods |= MOD_SHIFT;
-  case 'v': // Fallthrough
-    ibm_key = HID_Key::LETTER_V;
-    break;
-  case 'B':
-    mods |= MOD_SHIFT;
-  case 'b': // Fallthrough
-    ibm_key = HID_Key::LETTER_B;
-    break;
-  case 'N':
-    mods |= MOD_SHIFT;
-  case 'n': // Fallthrough
-    ibm_key = HID_Key::LETTER_N;
-    break;
-  case 'M':
-    mods |= MOD_SHIFT;
-  case 'm': // Fallthrough
-    ibm_key = HID_Key::LETTER_M;
-    break;
-  case '<':
-    mods |= MOD_SHIFT;
-  case ',': // Fallthrough
-    ibm_key = HID_Key::COMMA;
-    break;
-  case '>':
-    mods |= MOD_SHIFT;
-  case '.': // Fallthrough
-    ibm_key = HID_Key::PERIOD;
-    break;
-  case '?':
-    mods |= MOD_SHIFT;
-  case '/': // Fallthrough
-    ibm_key = HID_Key::SLASH;
-    break;
-  default:
-    Debugf("Unsupported codepoint: U+%04X (%d)\n", codepoint, codepoint);
-    return;
-  }
-
-  SendKey(ibm_key, mods);
-}
-
-void BleKeyboard::SendKey(HID_Key key, Modifier mods) {
-  if (!IsConnected())
-    return;
-
-  goto try_queueing;
-
-wait_for_buffered_free:
-  xSemaphoreTake(is_buffered_free, portMAX_DELAY);
-
-try_queueing:
-  uint8_t k = (uint8_t)key;
-  int n_buffered = buffered_.Count();
-  if (n_buffered == 6) {
-    // Buffer full
-    goto wait_for_buffered_free;
-  }
-
-  if (buffered_release[k]) {
-    // Key must be released before it's pressed
-    goto wait_for_buffered_free;
-  }
-  if (buffered_.Contains(key)) {
-    // Already pressed
-    goto wait_for_buffered_free;
-  }
-
-  if (n_buffered && (buffered_.modifiers != mods)) {
-    // Can't change modifiers on already buffered keys
-    goto wait_for_buffered_free;
-  }
-
-  // Success!
-  buffered_.modifiers = mods;
-  buffered_.keys[n_buffered] = k;
-  buffered_release.set((int)key); // also mark it for release later
-
-  if (!is_timer_scheduled_) {
-    Wakeup();
   }
 }

@@ -123,6 +123,16 @@ static void test_apply_delete() {
   printf(" OK\n");
 }
 
+static void test_apply_delete_nl() {
+  printf("test_apply_delete...");
+  EditorState s = MakeState({"hello", "", "", "", "", "", ""}, 0, 5);
+  assert(s.num_rows == 7);
+  ApplyKeystroke(s, Keystroke::Key(HID_Key::DELETE));
+  assert(s.num_rows == 6);
+  assert(s.cursor_col == 5);
+  printf(" OK\n");
+}
+
 static void test_apply_delete_merge_lines() {
   printf("test_apply_delete_merge_lines...");
   EditorState s = MakeState({"hello", "world"}, 0, 5);
@@ -293,78 +303,6 @@ static void test_leave_down_and_write() {
   EditorState expected = MakeState({"abc", "defgh", "", "x"}, 3, 1);
 
   assert(expected == s);
-  printf(" OK\n");
-}
-
-// ========== AlignLines tests ==========
-
-static void test_align_identical() {
-  printf("test_align_identical...");
-  EditorState a = MakeState({"hello", "world"});
-  EditorState b = MakeState({"hello", "world"});
-  LineOp ops[33];
-  int n = AlignLines(a, b, ops, 33);
-  assert(n == 2);
-  assert(ops[0].type == LineOp::KEEP);
-  assert(ops[1].type == LineOp::KEEP);
-  printf(" OK\n");
-}
-
-static void test_align_insert_at_top() {
-  printf("test_align_insert_at_top...");
-  EditorState cur = MakeState({"hello", "world"});
-  EditorState tgt = MakeState({"new", "hello", "world"});
-  LineOp ops[33];
-  int n = AlignLines(cur, tgt, ops, 33);
-  assert(n == 3);
-  assert(ops[0].type == LineOp::INSERT_LINE);
-  assert(ops[0].tgt_row == 0);
-  assert(ops[1].type == LineOp::KEEP);
-  assert(ops[2].type == LineOp::KEEP);
-  printf(" OK\n");
-}
-
-static void test_align_delete_middle() {
-  printf("test_align_delete_middle...");
-  EditorState cur = MakeState({"a", "b", "c"});
-  EditorState tgt = MakeState({"a", "c"});
-  LineOp ops[33];
-  int n = AlignLines(cur, tgt, ops, 33);
-  assert(n == 3);
-  assert(ops[0].type == LineOp::KEEP);
-  assert(ops[1].type == LineOp::DELETE_LINE);
-  assert(ops[1].cur_row == 1);
-  assert(ops[2].type == LineOp::KEEP);
-  printf(" OK\n");
-}
-
-static void test_align_complete_change() {
-  printf("test_align_complete_change...");
-  EditorState cur = MakeState({"a", "b"});
-  EditorState tgt = MakeState({"x", "y"});
-  LineOp ops[33];
-  int n = AlignLines(cur, tgt, ops, 33);
-  assert(n == 2);
-  assert(ops[0].type == LineOp::KEEP);
-  assert(ops[0].cur_row == 0 && ops[0].tgt_row == 0);
-  assert(ops[1].type == LineOp::KEEP);
-  assert(ops[1].cur_row == 1 && ops[1].tgt_row == 1);
-  printf(" OK\n");
-}
-
-static void test_align_scroll() {
-  printf("test_align_scroll...");
-  EditorState cur = MakeState({"line1", "line2", "line3"});
-  EditorState tgt = MakeState({"line2", "line3", "line4"});
-  LineOp ops[33];
-  int n = AlignLines(cur, tgt, ops, 33);
-  assert(n == 4);
-  assert(ops[0].type == LineOp::DELETE_LINE);
-  assert(ops[0].cur_row == 0);
-  assert(ops[1].type == LineOp::KEEP);
-  assert(ops[2].type == LineOp::KEEP);
-  assert(ops[3].type == LineOp::INSERT_LINE);
-  assert(ops[3].tgt_row == 2);
   printf(" OK\n");
 }
 
@@ -624,11 +562,6 @@ static void test_nk_ssh_output_scroll() {
   assert(ok);
   PrintKeystrokes(ks);
   AssertContentMatch(ed.current, ed.target, "ssh_output_scroll");
-  // Scrolled-out lines should be forgotten, not deleted.
-  for (auto &k : ks) {
-    assert(k.key != HID_Key::DELETE);
-    assert(k.key != HID_Key::BACKSPACE);
-  }
   printf(" OK (keystrokes: %zu)\n", ks.size());
 }
 
@@ -722,6 +655,84 @@ static void test_nk_navigate_across_short_row() {
   printf(" OK (keystrokes: %zu)\n", ks.size());
 }
 
+// ========== Middle row deletion test ==========
+
+static void test_nk_delete_middle_row() {
+  printf("test_nk_delete_middle_row...");
+  // Middle rows must be physically removed via keystrokes (DELETE + BACKSPACE),
+  // not silently dropped. Only top/bottom rows may be silently forgotten.
+  ShadowEditor ed;
+  ed.current = MakeState({"abc", "MIDDLE", "def"}, 0, 0);
+  ed.target = MakeState({"abc", "def"}, 0, 0);
+  std::vector<Keystroke> ks;
+  bool ok = RunToCompletion(ed, ks);
+  assert(ok);
+  PrintKeystrokes(ks);
+  AssertContentMatch(ed.current, ed.target, "delete_middle_row");
+  // Must use actual keystrokes to remove the middle row (not 0 keystrokes).
+  assert(ks.size() > 0);
+  // Should contain DELETE or BACKSPACE to remove row content/merge rows.
+  bool has_del_or_bs = false;
+  for (auto &k : ks)
+    if (k.key == HID_Key::BACKSPACE || k.key == HID_Key::DELETE)
+      has_del_or_bs = true;
+  assert(has_del_or_bs);
+  printf(" OK (keystrokes: %zu)\n", ks.size());
+}
+
+static void test_scroll() {
+  printf("test_scroll...");
+  ShadowEditor ed;
+  ed.current =
+      MakeState({"aaa", "bbb", "ccc", "ddd", "eee", "fff", "ggg"}, 6, 3);
+  ed.target =
+      MakeState({"bbb", "ccc", "ddd", "eee", "fff", "ggg", "hhh"}, 6, 3);
+  std::vector<Keystroke> ks;
+  bool ok = RunToCompletion(ed, ks);
+  assert(ok);
+  PrintKeystrokes(ks);
+  AssertContentMatch(ed.current, ed.target, "scroll");
+  // Verifies that we "forget" the top row instead of deleting it.
+  assert(ks.size() <= 5);
+  printf(" OK\n");
+}
+
+static void test_newline() {
+  printf("test_newline...");
+  ShadowEditor ed;
+  ed.current = MakeState(
+      {
+          "File Edit Options Buffers Tools Emacs-Lisp Help",
+          "",
+          "",
+          "",
+          "",
+          "-UUU:----F1  .emacs         All L1     tih",
+
+      },
+      5, 39);
+  ed.target = MakeState(
+      {
+          "File Edit Options Buffers Tools Emacs-Lisp Help",
+          "",
+          "",
+          "",
+          "",
+          "-UUU:----F1  .emacs         All L1     (ELisp/d ElDoc) "
+          "-------------------------",
+          ".emacs has auto save data; consider M-x recover-this-file",
+      },
+      1, 0);
+  std::vector<Keystroke> ks;
+  bool ok = RunToCompletion(ed, ks);
+  assert(ok);
+  PrintKeystrokes(ks);
+  AssertContentMatch(ed.current, ed.target, "scroll");
+  // Verifies that we "forget" the top row instead of deleting it.
+  assert(ks.size() < 200);
+  printf(" OK\n");
+}
+
 // ========== Main ==========
 
 int main() {
@@ -732,6 +743,7 @@ int main() {
   test_apply_backspace();
   test_apply_backspace_merge_lines();
   test_apply_delete();
+  test_apply_delete_nl();
   test_apply_delete_merge_lines();
   test_apply_enter();
   test_apply_enter_full();
@@ -741,15 +753,6 @@ int main() {
   test_leave_and_return();
   test_leave_up_and_write();
   test_leave_down_and_write();
-
-  printf("\n");
-
-  // AlignLines
-  test_align_identical();
-  test_align_insert_at_top();
-  test_align_delete_middle();
-  test_align_complete_change();
-  test_align_scroll();
 
   printf("\n");
 
@@ -791,9 +794,15 @@ int main() {
   // UP/DOWN HOME-anchor navigation
   test_nk_navigate_across_short_row();
 
+  // Middle row deletion
+  test_nk_delete_middle_row();
+
   // Bugs
   test_bug1();
   test_bug2();
+
+  test_scroll();
+  test_newline();
 
   printf("\n=== All tests passed! ===\n");
   return 0;

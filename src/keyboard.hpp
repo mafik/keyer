@@ -12,7 +12,7 @@ constexpr Modifier MOD_SHIFT = 0x02, MOD_ALT = 0x04, MOD_CTRL = 0x01,
                    MOD_RIGHT_SHIFT = 0x20, MOD_RIGHT_ALT = 0x40,
                    MOD_RIGHT_SUPER = 0x80;
 
-enum class HID_Key {
+enum class HID_Key : uint8_t {
   NONE,
 
   LETTER_A = 0x04,

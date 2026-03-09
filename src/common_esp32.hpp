@@ -14,7 +14,7 @@ namespace atmt {
 //
 // The default is false because when device is not connected to a computer but
 // is printing to the serial port, it causes the device to become laggy (weird).
-constexpr bool kDebug = true;
+constexpr bool kDebug = false;
 
 extern bool debug_line_start;
 

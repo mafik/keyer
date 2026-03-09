@@ -209,19 +209,38 @@ Port is usually `/dev/ttyACM0`, sometimes `/dev/ttyACM1` after reboot.
 
 ### ShadowEditor desktop test
 ```bash
-# Build and run
+# Build and run unit tests
 g++ -std=c++17 -g -O0 -I src -o test_forth/test_shadow_editor test_forth/test_shadow_editor.cpp
 ./test_forth/test_shadow_editor
 ```
 - Test file includes `shadow_editor.cpp` and `keyboard.cpp` directly — do NOT pass them as separate TUs
 - `shadow_editor.cpp` has no ESP32 dependencies — all desktop-testable
-- Tests cover: ApplyKeystroke, AlignLines, NextKeystroke convergence, HandleKeypress event mode
+- Tests cover: ApplyKeystroke, AlignLines, NextKeystroke convergence, HandleKeypress event mode, middle row deletion
+
+### ShadowEditor fuzz test
+```bash
+# Build and run browser fuzz test (requires Chrome + selenium)
+cd fuzz
+g++ -std=c++17 -O2 -I ../src -o fuzz_gen fuzz_gen.cpp
+./fuzz_gen 500 | python3 fuzz_browser.py        # random seed
+./fuzz_gen 500 42 | python3 fuzz_browser.py     # fixed seed
+```
+- `fuzz_gen` generates random current/target states, runs NextKeystroke loop, outputs JSON
+- `fuzz_browser.py` drives headless Chrome with a textarea, applies each keystroke, verifies state
+- Uses cursor-anchored region extraction to handle rows above/below the tracked area
+- Requires: `pip install selenium chromedriver-autoinstaller`
+
+### ShadowEditor row deletion — no silent drops
+- **NextKeystroke never silently drops rows from its model.** All row deletions use actual keystrokes (DELETE to clear content, then BACKSPACE/DELETE to merge with adjacent row).
+- Row 0 can't BACKSPACE up — use DELETE at (0,0) on an empty row to merge row 1 up instead.
+- **DELETE_LINE and KEEP ops are processed before INSERT_LINE** — deletions must free buffer space before insertions can use it. ENTER at full capacity (kRows) when cursor is at col 0 of row 0 is a no-op, causing infinite loops if insertions are attempted before deletions.
 
 ### ShadowEditor pitfalls
-- **Empty-line LCS ambiguity**: Empty rows are excluded from LCS matching in `AlignLines`. Without this, inserting a blank row via ENTER gets matched with a distant empty target row by LCS, the pre-processing silently deletes it, creating an infinite loop. Empty rows are paired positionally via gap post-processing instead.
+- **Empty-line LCS ambiguity**: Empty rows are excluded from LCS matching in `AlignLines`. Without this, inserting a blank row via ENTER gets matched with a distant empty target row by LCS, creating an infinite loop. Empty rows are paired positionally via gap post-processing instead.
 - **Out-of-bounds cursor**: `EditorState::operator==` compares clamped cursor positions. The final cursor navigation in `NextKeystroke` also clamps target cursor to valid range. Without this, `target.cursor_col` past row length causes infinite RIGHT_ARROW.
 - **UP/DOWN column desync**: Host editors may clamp `cursor_col` to line length on UP/DOWN (clamping editors) or preserve a "sticky column" (VS Code, Vim). NavigateToward emits HOME before any UP/DOWN when `cursor_col != 0`, so row changes always start from column 0 — predictable in all editors.
 - **ENTER auto-indent**: Smart editors auto-indent after ENTER based on surrounding context. INSERT_LINE uses ENTER at column 0 of the next line (not end of the previous line), giving the host editor no indentation context. Exception: the append case (ENTER at end of last line) has no next line to navigate to.
+- **ENTER at full capacity row 0 col 0 is a no-op**: The left part (empty) is dropped and right part stays at row 0. This caused infinite loops when INSERT_LINE was attempted before DELETE_LINE freed space.
 
 ### WiFi lifecycle — cleanup is critical
 - `WiFi.begin()` fails with "esp_wifi_init 257" (ESP_ERR_NO_MEM) or "Failed to deinit Wi-Fi driver (0x3001)" if WiFi wasn't properly cleaned up from a previous session.
@@ -276,4 +295,14 @@ python3 -m esptool --chip esp32s3 --port /dev/ttyACM0 --baud 921600 write_flash 
 - `jim-win32compat.h` must be present (included by `jim.h`; no-op on non-Windows)
 
 ### lib/libvterm
-The `lib/libvterm/library.json` may need a fix for `-Werror` builds. If you see libvterm compile errors, check that file.
+The `lib/libvterm/library.json` has `-Wno-error`, `-Wno-discarded-qualifiers`, `-Wno-maybe-uninitialized`, `-Wno-empty-body` flags to suppress upstream warnings.
+
+### Build warning suppression
+- **jimtcl**: warnings suppressed via `set_source_files_properties` in `src/CMakeLists.txt` (`-Wno-missing-field-initializers -Wno-implicit-fallthrough -Wno-unused-variable`)
+- **Global** (`platformio.ini` build_flags): `-Wno-missing-field-initializers -Wno-implicit-fallthrough -Wno-deprecated-declarations` — suppresses warnings from LibSSH, Arduino I2S
+- **NimBLE/FreeRTOS**: macro redefinition warnings (sdkconfig vs nimconfig.h / FreeRTOSConfig.h) — GCC has no `-Wno-` flag for preprocessor macro redefinitions; these are unfixable without patching upstream
+- **`build_src_filter`** in platformio.ini is ignored by ESP-IDF and produces a warning — do NOT add it back
+- **`sdkconfig.defaults`** must have `CONFIG_ESPTOOLPY_FLASHSIZE="16MB"` to match the board definition, otherwise "Flash memory size mismatch" warning
+
+### HID_Key enum
+The key enum is `HID_Key` (in `keyboard.hpp`), NOT `IBM_Key`. It was renamed. Test files use `HID_Key`.

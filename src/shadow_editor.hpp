@@ -34,8 +34,8 @@ struct EditorState {
 // A single keystroke that can be sent via BLE.
 // Either a raw IBM key or a unicode character, with optional modifiers.
 struct Keystroke {
-  HID_Key key = HID_Key::NONE; // Non-NONE for raw key presses
   uint32_t codepoint = 0;      // Non-zero for unicode character input
+  HID_Key key = HID_Key::NONE; // Non-NONE for raw key presses
   Modifier mods = 0;
 
   bool IsNone() const { return key == HID_Key::NONE && codepoint == 0; }
@@ -47,9 +47,9 @@ struct Keystroke {
   }
   bool operator!=(const Keystroke &o) const { return !(*this == o); }
 
-  static Keystroke Key(HID_Key k, Modifier m = 0) { return {k, 0, m}; }
+  static Keystroke Key(HID_Key k, Modifier m = 0) { return {0, k, m}; }
   static Keystroke Char(uint32_t cp, Modifier m = 0) {
-    return {HID_Key::NONE, cp, m};
+    return {cp, HID_Key::NONE, m};
   }
   static Keystroke None() { return {}; }
 };
@@ -65,14 +65,6 @@ struct LineOp {
   int cur_row; // source row in current (for KEEP/DELETE)
   int tgt_row; // source row in target (for KEEP/INSERT)
 };
-
-// Compute line-level alignment between current and target using LCS.
-// Returns an edit script (sequence of LineOps) to transform current into
-// target.
-// max_ops: output array, max_len: its capacity.
-// Returns the number of ops written.
-int AlignLines(const EditorState &current, const EditorState &target,
-               LineOp *ops, int max_len);
 
 // ShadowEditor attempts to perfectly reproduce the on-screen text & cursor
 // position.

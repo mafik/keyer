@@ -82,9 +82,16 @@ void ApplyKeystroke(EditorState &s, Keystroke ks) {
     return;
   }
 
-  // Navigation keys that reference row content: clamp first.
+  // HOME just sets column to 0 — works even when cursor_row is negative
+  // (cursor above the tracked region after forgetting rows).
+  if (ks.key == HID_Key::HOME) {
+    s.cursor_col = 0;
+    return;
+  }
+
+  // Other navigation keys reference row content: clamp first.
   if (ks.key == HID_Key::LEFT_ARROW || ks.key == HID_Key::RIGHT_ARROW ||
-      ks.key == HID_Key::HOME || ks.key == HID_Key::END) {
+      ks.key == HID_Key::END) {
     s.ClampCursor();
     int r = s.cursor_row;
     int c = s.cursor_col;
@@ -104,9 +111,6 @@ void ApplyKeystroke(EditorState &s, Keystroke ks) {
         s.cursor_row = r + 1;
         s.cursor_col = 0;
       }
-      break;
-    case HID_Key::HOME:
-      s.cursor_col = 0;
       break;
     case HID_Key::END:
       s.cursor_col = s.RowLen(r);
@@ -187,94 +191,6 @@ void ApplyKeystroke(EditorState &s, Keystroke ks) {
   }
 }
 
-// --- AlignLines ---
-//
-// Uses LCS to find identical-line anchors, then pairs up remaining lines in
-// each gap for in-place editing. Adjacent DELETE/INSERT runs become KEEP ops
-// (with character-level diffs handled later).
-
-int AlignLines(const EditorState &current, const EditorState &target,
-               LineOp *ops, int max_len) {
-  int n = current.num_rows;
-  int m = target.num_rows;
-
-  // LCS DP table (17x17 = 289 ints max)
-  int dp[EditorState::kRows + 1][EditorState::kRows + 1];
-  memset(dp, 0, sizeof(dp));
-
-  for (int i = 1; i <= n; ++i) {
-    for (int j = 1; j <= m; ++j) {
-      if (!current.rows[i - 1].empty() &&
-          current.rows[i - 1] == target.rows[j - 1])
-        dp[i][j] = dp[i - 1][j - 1] + 1;
-      else
-        dp[i][j] = std::max(dp[i - 1][j], dp[i][j - 1]);
-    }
-  }
-
-  // Backtrack LCS to get raw edit script (in reverse)
-  struct RawOp {
-    enum { MATCH, DEL, INS } type;
-    int cur_row, tgt_row;
-  };
-  RawOp raw[EditorState::kRows * 2 + 1];
-  int raw_count = 0;
-
-  int i = n, j = m;
-  while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && !current.rows[i - 1].empty() &&
-        current.rows[i - 1] == target.rows[j - 1]) {
-      raw[raw_count++] = {RawOp::MATCH, i - 1, j - 1};
-      i--;
-      j--;
-    } else if (j > 0 && (i == 0 || dp[i][j - 1] > dp[i - 1][j])) {
-      raw[raw_count++] = {RawOp::INS, -1, j - 1};
-      j--;
-    } else {
-      raw[raw_count++] = {RawOp::DEL, i - 1, -1};
-      i--;
-    }
-  }
-
-  // Reverse to forward order
-  for (int a = 0, b = raw_count - 1; a < b; a++, b--)
-    std::swap(raw[a], raw[b]);
-
-  // Post-process: pair up adjacent DEL/INS runs into KEEP (in-place edit).
-  int out_count = 0;
-  int pos = 0;
-
-  while (pos < raw_count && out_count < max_len) {
-    if (raw[pos].type == RawOp::MATCH) {
-      ops[out_count++] = {LineOp::KEEP, raw[pos].cur_row, raw[pos].tgt_row};
-      pos++;
-      continue;
-    }
-
-    // Collect a gap of DELs and INSs
-    int del_count = 0, ins_count = 0;
-    int del_rows[EditorState::kRows], ins_rows[EditorState::kRows];
-    while (pos < raw_count && raw[pos].type != RawOp::MATCH) {
-      if (raw[pos].type == RawOp::DEL)
-        del_rows[del_count++] = raw[pos].cur_row;
-      else
-        ins_rows[ins_count++] = raw[pos].tgt_row;
-      pos++;
-    }
-
-    // Pair up: min(del, ins) become KEEP, rest stay as DELETE/INSERT
-    int pairs = std::min(del_count, ins_count);
-    for (int k = 0; k < pairs && out_count < max_len; ++k)
-      ops[out_count++] = {LineOp::KEEP, del_rows[k], ins_rows[k]};
-    for (int k = pairs; k < del_count && out_count < max_len; ++k)
-      ops[out_count++] = {LineOp::DELETE_LINE, del_rows[k], -1};
-    for (int k = pairs; k < ins_count && out_count < max_len; ++k)
-      ops[out_count++] = {LineOp::INSERT_LINE, -1, ins_rows[k]};
-  }
-
-  return out_count;
-}
-
 // --- ShadowEditor ---
 
 bool ShadowEditor::HandleKeypress(Keystroke ks) {
@@ -311,132 +227,212 @@ static Keystroke NavigateToward(const EditorState &s, int target_row,
   return Keystroke::Key(HID_Key::LEFT_ARROW);
 }
 
+// Flatten EditorState into a single string with '\n' row separators.
+static std::string FlattenState(const EditorState &s) {
+  std::string r;
+  for (int i = 0; i < s.num_rows; ++i) {
+    if (i > 0)
+      r += '\n';
+    r += s.rows[i];
+  }
+  return r;
+}
+
+// Convert flat string offset to (row, col) in the editor model.
+// A '\n' at the boundary maps to (row_before, end_of_row) so that
+// DELETE at that position merges the two rows correctly.
+static void FlatOffsetToRowCol(const EditorState &s, int off, int &row,
+                               int &col) {
+  for (int i = 0; i < s.num_rows; ++i) {
+    int rl = (int)s.rows[i].size();
+    if (off <= rl) {
+      row = i;
+      col = off;
+      return;
+    }
+    off -= rl + 1;
+  }
+  row = s.num_rows - 1;
+  col = s.RowLen(row);
+}
+
+// Edit distance (insert + delete only, no substitution) between a[as:] and
+// b[bs:]. Uses O(m) rolling array. Returns the minimum number of single-char
+// insertions and deletions to transform one suffix into the other.
+static int EditDist(const std::string &a, int as, const std::string &b,
+                    int bs) {
+  int n = std::max(0, (int)a.size() - as);
+  int m = std::max(0, (int)b.size() - bs);
+  static int dp[512];
+  if (m >= 512)
+    return n + m; // safety fallback
+  for (int j = 0; j <= m; ++j)
+    dp[j] = j;
+  for (int i = 1; i <= n; ++i) {
+    int prev = dp[0];
+    dp[0] = i;
+    for (int j = 1; j <= m; ++j) {
+      int tmp = dp[j];
+      if (a[as + i - 1] == b[bs + j - 1])
+        dp[j] = prev;
+      else
+        dp[j] = 1 + std::min(dp[j], dp[j - 1]);
+      prev = tmp;
+    }
+  }
+  return dp[m];
+}
+
+// Compute suffix_dist[i] = EditDist(a[i:], b) for all i in [0, n].
+// Uses reverse DP with rolling array. O(nm) time, O(n + m) space.
+static void ComputeSuffixDist(const std::string &a, int n, const std::string &b,
+                              int m, int *suffix_dist) {
+  static int dp[512];
+  if (m >= 512) {
+    for (int i = 0; i <= n; ++i)
+      suffix_dist[i] = (n - i) + m;
+    return;
+  }
+  // Base: EditDist("", b) = m
+  for (int j = 0; j <= m; ++j)
+    dp[j] = j;
+  suffix_dist[n] = m;
+  // Build up from the end of a: rdp[i][j] = EditDist(a[n-i : n], b[m-j : m])
+  // We want rdp[i][m] = EditDist(a[n-i:], b) = suffix_dist[n-i].
+  for (int i = 1; i <= n; ++i) {
+    int prev = dp[0];
+    dp[0] = i;
+    for (int j = 1; j <= m; ++j) {
+      int tmp = dp[j];
+      if (a[n - i] == b[m - j])
+        dp[j] = prev;
+      else
+        dp[j] = 1 + std::min(dp[j], dp[j - 1]);
+      prev = tmp;
+    }
+    suffix_dist[n - i] = dp[m];
+  }
+}
+
 Keystroke ShadowEditor::NextKeystroke() {
   if (current == target)
     return Keystroke::None();
 
-  // Pre-process: silently drop lines that exist in current but not in target.
-  // These lines leave the tracked area and stay in the host as untracked
-  // history. Remove bottom-to-top so indices stay valid.
-  {
-    LineOp ops[EditorState::kRows * 3];
-    int num_ops = AlignLines(current, target, ops, EditorState::kRows * 3);
-    for (int i = num_ops - 1; i >= 0; i--) {
-      if (ops[i].type != LineOp::DELETE_LINE)
-        continue;
-      int row = ops[i].cur_row;
-      if (row < 0 || row >= current.num_rows)
-        continue;
-      for (int j = row; j < current.num_rows - 1; ++j)
-        current.rows[j] = std::move(current.rows[j + 1]);
-      current.rows[current.num_rows - 1].clear();
-      if (current.num_rows > 1) {
-        current.num_rows--;
-        if (current.cursor_row > row)
-          current.cursor_row--;
-      } else {
-        current.rows[0].clear();
-      }
-    }
-    current.ClampCursor();
+  // Flatten both states into single strings with '\n' as row separator.
+  std::string cf = FlattenState(current);
+  std::string tf = FlattenState(target);
+  int n = (int)cf.size(), m = (int)tf.size();
+
+  // Compute suffix edit distances to detect forgettable leading deletions.
+  // suffix_dist[i] = EditDist(cf[i:], tf). The total edit distance is
+  // suffix_dist[0]. If i + suffix_dist[i] == suffix_dist[0] at a row
+  // boundary i, then deleting cf[0:i] (which includes complete rows) is
+  // part of an optimal edit — those rows can be silently "forgotten".
+  static int suffix_dist[512];
+  if (n >= 512) {
+    // Strings too long for stack buffer — skip forgetting.
+    suffix_dist[0] = EditDist(cf, 0, tf, 0);
+  } else {
+    ComputeSuffixDist(cf, n, tf, m, suffix_dist);
   }
+  int dp_total = suffix_dist[0];
 
-  if (current == target)
-    return Keystroke::None();
-
-  // Compute line alignment (no DELETE ops remain after pre-processing).
-  LineOp ops[EditorState::kRows * 3];
-  int num_ops = AlignLines(current, target, ops, EditorState::kRows * 3);
-
-  // Walk the edit script. KEEP ops get character-level edits, INSERT ops get
-  // ENTER. Each call emits at most one keystroke.
-  for (int i = 0; i < num_ops; ++i) {
-    auto &op = ops[i];
-
-    if (op.type == LineOp::KEEP) {
-      int cr = op.cur_row;
-      int tr = op.tgt_row;
-      if (cr < 0 || cr >= current.num_rows)
-        continue;
-      if (tr < 0 || tr >= target.num_rows)
-        continue;
-
-      const std::string &cur_line = current.rows[cr];
-      const std::string &tgt_line = target.rows[tr];
-      if (cur_line == tgt_line)
-        continue;
-
-      // Character-level diff: common prefix, common suffix, edit the middle.
-      int prefix = 0;
-      int min_len = std::min((int)cur_line.size(), (int)tgt_line.size());
-      while (prefix < min_len && cur_line[prefix] == tgt_line[prefix])
-        prefix++;
-
-      int cur_end = (int)cur_line.size();
-      int tgt_end = (int)tgt_line.size();
-      while (cur_end > prefix && tgt_end > prefix &&
-             cur_line[cur_end - 1] == tgt_line[tgt_end - 1]) {
-        cur_end--;
-        tgt_end--;
-      }
-
-      // Navigate to the first edit position.
-      Keystroke nav = NavigateToward(current, cr, prefix);
-      if (!nav.IsNone())
-        return nav;
-
-      // Left-to-right sweep: DELETE divergent chars, then type replacements.
-      if (cur_end > prefix)
-        return Keystroke::Key(HID_Key::DELETE);
-      if (tgt_end > prefix)
-        return Keystroke::Char(tgt_line[prefix]);
-
-      continue;
-    }
-
-    if (op.type == LineOp::INSERT_LINE) {
-      if (op.tgt_row < 0 || op.tgt_row >= target.num_rows)
-        continue;
-
-      // Find which current row this inserts before.
-      int insert_at = -1;
-      for (int j = i + 1; j < num_ops; ++j) {
-        if (ops[j].cur_row >= 0) {
-          insert_at = ops[j].cur_row;
-          break;
-        }
-      }
-
-      if (insert_at < 0) {
-        // Append after last line.
-        int last = current.num_rows - 1;
-        Keystroke nav = NavigateToward(current, last, current.RowLen(last));
-        if (!nav.IsNone())
-          return nav;
-      } else {
-        // ENTER at (insert_at, 0). Column 0 avoids host auto-indent.
-        Keystroke nav = NavigateToward(current, insert_at, 0);
-        if (!nav.IsNone())
-          return nav;
-      }
-      return Keystroke::Key(HID_Key::ENTER);
+  // Find the largest row boundary where leading deletions are optimal.
+  // These rows have "scrolled off" the top and can be silently forgotten.
+  int forget_pos = 0;
+  if (n < 512) {
+    int pos = 0;
+    for (int r = 0; r < current.num_rows - 1; ++r) {
+      pos += (int)current.rows[r].size() + 1; // row content + '\n'
+      if (pos <= n && pos + suffix_dist[pos] == dp_total)
+        forget_pos = pos;
+      else
+        break;
     }
   }
 
-  // All content matches — navigate cursor to target position.
-  int goal_row = target.cursor_row;
-  int goal_col = target.cursor_col;
-  if (goal_row >= current.num_rows)
-    goal_row = current.num_rows - 1;
-  if (goal_row < 0)
-    goal_row = 0;
-  if (goal_col > current.RowLen(goal_row))
-    goal_col = current.RowLen(goal_row);
-  Keystroke nav = NavigateToward(current, goal_row, goal_col);
+  // Apply forgetting: silently drop leading rows from current.
+  if (forget_pos > 0) {
+    int rows_to_forget = 0;
+    int pos = 0;
+    for (int r = 0; r < current.num_rows; ++r) {
+      pos += (int)current.rows[r].size() + 1;
+      if (pos <= forget_pos)
+        rows_to_forget++;
+      else
+        break;
+    }
+    for (int i = 0; i < current.num_rows - rows_to_forget; ++i)
+      current.rows[i] = std::move(current.rows[i + rows_to_forget]);
+    for (int i = current.num_rows - rows_to_forget; i < current.num_rows; ++i)
+      current.rows[i].clear();
+    current.num_rows -= rows_to_forget;
+    current.cursor_row -= rows_to_forget;
+    // Don't clamp cursor_row — it may be negative (cursor is in the
+    // forgotten zone above the tracked region). NavigateToward will emit
+    // HOME (to reset cursor_col) then DOWN_ARROWs to bring it back.
+
+    if (current == target)
+      return Keystroke::None();
+
+    // Re-flatten after forgetting.
+    cf = FlattenState(current);
+    n = (int)cf.size();
+  }
+
+  // Find the first edit in the edit script by scanning for the first
+  // position where the flattened strings diverge.
+  int p = 0;
+  int lim = std::min(n, m);
+  while (p < lim && cf[p] == tf[p])
+    ++p;
+
+  // If content matches, only cursor position differs — navigate there.
+  if (p == n && p == m) {
+    int gr = target.cursor_row, gc = target.cursor_col;
+    if (gr < 0)
+      gr = 0;
+    if (gr >= current.num_rows)
+      gr = current.num_rows - 1;
+    if (gc > current.RowLen(gr))
+      gc = current.RowLen(gr);
+    return NavigateToward(current, gr, gc);
+  }
+
+  // Navigate cursor to the first edit position.
+  int er, ec;
+  FlatOffsetToRowCol(current, std::min(p, n), er, ec);
+  Keystroke nav = NavigateToward(current, er, ec);
   if (!nav.IsNone())
     return nav;
 
-  return Keystroke::None();
+  // We're at the edit position. Decide: DELETE current[p] or INSERT target[p].
+  if (p >= n) {
+    char ch = tf[p];
+    if (ch == '\n')
+      return Keystroke::Key(HID_Key::ENTER);
+    return Keystroke::Char((uint8_t)ch);
+  }
+  if (p >= m)
+    return Keystroke::Key(HID_Key::DELETE);
+
+  // Both strings have remaining chars. Use edit distance to pick the
+  // operation that leads to a smaller remaining distance.
+  int d_del = EditDist(cf, p + 1, tf, p);
+  int d_ins = EditDist(cf, p, tf, p + 1);
+
+  // Avoid INSERT '\n' at full row capacity — ENTER would drop row 0,
+  // destroying content that's part of the matched prefix.
+  if (d_ins < d_del && tf[p] == '\n' && current.num_rows >= EditorState::kRows)
+    d_ins = d_del + 1;
+
+  if (d_del <= d_ins)
+    return Keystroke::Key(HID_Key::DELETE);
+
+  char ch = tf[p];
+  if (ch == '\n')
+    return Keystroke::Key(HID_Key::ENTER);
+  return Keystroke::Char((uint8_t)ch);
 }
 
 } // namespace atmt
