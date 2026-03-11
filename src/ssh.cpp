@@ -93,10 +93,33 @@ static void UpdateEditorFromVTerm() {
       VTermPos pos = {.row = row, .col = col};
       VTermScreenCell cell;
       vterm_screen_get_cell(vterm_screen, pos, &cell);
-      char ch = (cell.chars[0] >= 32 && cell.chars[0] <= 126)
-                    ? (char)cell.chars[0]
-                    : ' ';
-      tgt.rows[row] += ch;
+      uint32_t cp = cell.chars[0];
+      if (cp >= 32) {
+        char buf[4];
+        int len;
+        if (cp < 0x80) {
+          buf[0] = cp;
+          len = 1;
+        } else if (cp < 0x800) {
+          buf[0] = 0xC0 | (cp >> 6);
+          buf[1] = 0x80 | (cp & 0x3F);
+          len = 2;
+        } else if (cp < 0x10000) {
+          buf[0] = 0xE0 | (cp >> 12);
+          buf[1] = 0x80 | ((cp >> 6) & 0x3F);
+          buf[2] = 0x80 | (cp & 0x3F);
+          len = 3;
+        } else {
+          buf[0] = 0xF0 | (cp >> 18);
+          buf[1] = 0x80 | ((cp >> 12) & 0x3F);
+          buf[2] = 0x80 | ((cp >> 6) & 0x3F);
+          buf[3] = 0x80 | (cp & 0x3F);
+          len = 4;
+        }
+        tgt.rows[row].append(buf, len);
+      } else {
+        tgt.rows[row] += ' ';
+      }
     }
     // Trim trailing spaces, but keep spaces up to the cursor on the cursor row
     int keep = (row == cpos.row) ? cpos.col : 0;

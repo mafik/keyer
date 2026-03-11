@@ -5,6 +5,90 @@
 
 namespace atmt {
 
+// --- UTF-8 helpers (inline for desktop testability) ---
+
+// Encode Unicode codepoint to UTF-8. Returns number of bytes written (1-4).
+static int EncodeUtf8(char *buf, uint32_t cp) {
+  if (cp < 0x80) {
+    buf[0] = cp;
+    return 1;
+  }
+  if (cp < 0x800) {
+    buf[0] = 0xC0 | (cp >> 6);
+    buf[1] = 0x80 | (cp & 0x3F);
+    return 2;
+  }
+  if (cp < 0x10000) {
+    buf[0] = 0xE0 | (cp >> 12);
+    buf[1] = 0x80 | ((cp >> 6) & 0x3F);
+    buf[2] = 0x80 | (cp & 0x3F);
+    return 3;
+  }
+  buf[0] = 0xF0 | (cp >> 18);
+  buf[1] = 0x80 | ((cp >> 12) & 0x3F);
+  buf[2] = 0x80 | ((cp >> 6) & 0x3F);
+  buf[3] = 0x80 | (cp & 0x3F);
+  return 4;
+}
+
+// Decode one UTF-8 character. Returns number of bytes consumed (1-4).
+static int DecodeUtf8(const char *s, uint32_t &cp) {
+  uint8_t c = (uint8_t)s[0];
+  if (c < 0x80) {
+    cp = c;
+    return 1;
+  }
+  if ((c & 0xE0) == 0xC0) {
+    cp = ((c & 0x1F) << 6) | (s[1] & 0x3F);
+    return 2;
+  }
+  if ((c & 0xF0) == 0xE0) {
+    cp = ((c & 0x0F) << 12) | ((s[1] & 0x3F) << 6) | (s[2] & 0x3F);
+    return 3;
+  }
+  cp = ((c & 0x07) << 18) | ((s[1] & 0x3F) << 12) | ((s[2] & 0x3F) << 6) |
+       (s[3] & 0x3F);
+  return 4;
+}
+
+// Count UTF-8 characters in a string.
+static int Utf8Len(const std::string &s) {
+  int count = 0;
+  const char *p = s.c_str();
+  const char *end = p + s.size();
+  while (p < end) {
+    uint8_t c = (uint8_t)*p;
+    if (c < 0x80)
+      p += 1;
+    else if ((c & 0xE0) == 0xC0)
+      p += 2;
+    else if ((c & 0xF0) == 0xE0)
+      p += 3;
+    else
+      p += 4;
+    count++;
+  }
+  return count;
+}
+
+// Get byte offset of the i-th UTF-8 character in a string.
+static int Utf8ByteOffset(const std::string &s, int char_idx) {
+  const char *p = s.c_str();
+  const char *end = p + s.size();
+  for (int i = 0; i < char_idx && p < end; i++) {
+    uint8_t c = (uint8_t)*p;
+    if (c < 0x80)
+      p += 1;
+    else if ((c & 0xE0) == 0xC0)
+      p += 2;
+    else if ((c & 0xF0) == 0xE0)
+      p += 3;
+    else
+      p += 4;
+  }
+  return (int)(p - s.c_str());
+}
+
 // --- EditorState ---
 
 bool EditorState::operator==(const EditorState &o) const {
@@ -21,7 +105,7 @@ bool EditorState::operator==(const EditorState &o) const {
     if (r >= s.num_rows)
       r = s.num_rows - 1;
     int c = s.cursor_col;
-    int len = (r >= 0 && r < s.num_rows) ? (int)s.rows[r].size() : 0;
+    int len = (r >= 0 && r < s.num_rows) ? s.RowLen(r) : 0;
     if (c > len)
       c = len;
     return {r, c};
@@ -44,7 +128,7 @@ void EditorState::ClampCursor() {
 int EditorState::RowLen(int r) const {
   if (r < 0 || r >= num_rows)
     return 0;
-  return (int)rows[r].size();
+  return Utf8Len(rows[r]);
 }
 
 // --- ApplyKeystroke ---
@@ -127,8 +211,10 @@ void ApplyKeystroke(EditorState &s, Keystroke ks) {
   int c = s.cursor_col;
 
   if (ks.IsChar()) {
-    char ch = (ks.codepoint <= 127) ? (char)ks.codepoint : '?';
-    s.rows[r].insert(s.rows[r].begin() + c, ch);
+    char buf[4];
+    int len = EncodeUtf8(buf, ks.codepoint);
+    int byte_off = Utf8ByteOffset(s.rows[r], c);
+    s.rows[r].insert(byte_off, buf, len);
     s.cursor_col = c + 1;
     return;
   }
@@ -136,7 +222,9 @@ void ApplyKeystroke(EditorState &s, Keystroke ks) {
   switch (ks.key) {
   case HID_Key::BACKSPACE:
     if (c > 0) {
-      s.rows[r].erase(c - 1, 1);
+      int byte_start = Utf8ByteOffset(s.rows[r], c - 1);
+      int byte_end = Utf8ByteOffset(s.rows[r], c);
+      s.rows[r].erase(byte_start, byte_end - byte_start);
       s.cursor_col = c - 1;
     } else if (r > 0) {
       int prev_len = s.RowLen(r - 1);
@@ -152,7 +240,9 @@ void ApplyKeystroke(EditorState &s, Keystroke ks) {
 
   case HID_Key::DELETE:
     if (c < s.RowLen(r)) {
-      s.rows[r].erase(c, 1);
+      int byte_start = Utf8ByteOffset(s.rows[r], c);
+      int byte_end = Utf8ByteOffset(s.rows[r], c + 1);
+      s.rows[r].erase(byte_start, byte_end - byte_start);
     } else if (r < s.num_rows - 1) {
       s.rows[r] += s.rows[r + 1];
       for (int i = r + 1; i < s.num_rows - 1; ++i)
@@ -163,8 +253,9 @@ void ApplyKeystroke(EditorState &s, Keystroke ks) {
     break;
 
   case HID_Key::ENTER: {
-    std::string right_part = s.rows[r].substr(c);
-    s.rows[r] = s.rows[r].substr(0, c);
+    int byte_c = Utf8ByteOffset(s.rows[r], c);
+    std::string right_part = s.rows[r].substr(byte_c);
+    s.rows[r] = s.rows[r].substr(0, byte_c);
     if (s.num_rows < EditorState::kRows) {
       // Room available: shift rows down and insert.
       for (int i = s.num_rows; i > r + 1; --i)
@@ -227,30 +318,37 @@ static Keystroke NavigateToward(const EditorState &s, int target_row,
   return Keystroke::Key(HID_Key::LEFT_ARROW);
 }
 
-// Flatten EditorState into a single string with '\n' row separators.
-static std::string FlattenState(const EditorState &s) {
-  std::string r;
+// Flatten EditorState into a u32string (one codepoint per element) with '\n'
+// row separators. This allows character-level comparison and edit distance.
+static std::u32string FlattenState(const EditorState &s) {
+  std::u32string r;
   for (int i = 0; i < s.num_rows; ++i) {
     if (i > 0)
-      r += '\n';
-    r += s.rows[i];
+      r += U'\n';
+    const char *p = s.rows[i].c_str();
+    const char *end = p + s.rows[i].size();
+    while (p < end) {
+      uint32_t cp;
+      p += DecodeUtf8(p, cp);
+      r += (char32_t)cp;
+    }
   }
   return r;
 }
 
-// Convert flat string offset to (row, col) in the editor model.
+// Convert flat codepoint offset to (row, col) in the editor model.
 // A '\n' at the boundary maps to (row_before, end_of_row) so that
 // DELETE at that position merges the two rows correctly.
 static void FlatOffsetToRowCol(const EditorState &s, int off, int &row,
                                int &col) {
   for (int i = 0; i < s.num_rows; ++i) {
-    int rl = (int)s.rows[i].size();
-    if (off <= rl) {
+    int char_len = Utf8Len(s.rows[i]);
+    if (off <= char_len) {
       row = i;
       col = off;
       return;
     }
-    off -= rl + 1;
+    off -= char_len + 1;
   }
   row = s.num_rows - 1;
   col = s.RowLen(row);
@@ -259,7 +357,7 @@ static void FlatOffsetToRowCol(const EditorState &s, int off, int &row,
 // Edit distance (insert + delete only, no substitution) between a[as:] and
 // b[bs:]. Uses O(m) rolling array. Returns the minimum number of single-char
 // insertions and deletions to transform one suffix into the other.
-static int EditDist(const std::string &a, int as, const std::string &b,
+static int EditDist(const std::u32string &a, int as, const std::u32string &b,
                     int bs) {
   int n = std::max(0, (int)a.size() - as);
   int m = std::max(0, (int)b.size() - bs);
@@ -285,8 +383,9 @@ static int EditDist(const std::string &a, int as, const std::string &b,
 
 // Compute suffix_dist[i] = EditDist(a[i:], b) for all i in [0, n].
 // Uses reverse DP with rolling array. O(nm) time, O(n + m) space.
-static void ComputeSuffixDist(const std::string &a, int n, const std::string &b,
-                              int m, int *suffix_dist) {
+static void ComputeSuffixDist(const std::u32string &a, int n,
+                              const std::u32string &b, int m,
+                              int *suffix_dist) {
   static int dp[512];
   if (m >= 512) {
     for (int i = 0; i <= n; ++i)
@@ -318,9 +417,9 @@ Keystroke ShadowEditor::NextKeystroke() {
   if (current == target)
     return Keystroke::None();
 
-  // Flatten both states into single strings with '\n' as row separator.
-  std::string cf = FlattenState(current);
-  std::string tf = FlattenState(target);
+  // Flatten both states into codepoint arrays with '\n' as row separator.
+  std::u32string cf = FlattenState(current);
+  std::u32string tf = FlattenState(target);
   int n = (int)cf.size(), m = (int)tf.size();
 
   // Compute suffix edit distances to detect forgettable leading deletions.
@@ -343,7 +442,7 @@ Keystroke ShadowEditor::NextKeystroke() {
   if (n < 512) {
     int pos = 0;
     for (int r = 0; r < current.num_rows - 1; ++r) {
-      pos += (int)current.rows[r].size() + 1; // row content + '\n'
+      pos += Utf8Len(current.rows[r]) + 1; // char count + '\n'
       if (pos <= n && pos + suffix_dist[pos] == dp_total)
         forget_pos = pos;
       else
@@ -356,7 +455,7 @@ Keystroke ShadowEditor::NextKeystroke() {
     int rows_to_forget = 0;
     int pos = 0;
     for (int r = 0; r < current.num_rows; ++r) {
-      pos += (int)current.rows[r].size() + 1;
+      pos += Utf8Len(current.rows[r]) + 1;
       if (pos <= forget_pos)
         rows_to_forget++;
       else
@@ -381,7 +480,7 @@ Keystroke ShadowEditor::NextKeystroke() {
   }
 
   // Find the first edit in the edit script by scanning for the first
-  // position where the flattened strings diverge.
+  // position where the flattened codepoint arrays diverge.
   int p = 0;
   int lim = std::min(n, m);
   while (p < lim && cf[p] == tf[p])
@@ -408,10 +507,10 @@ Keystroke ShadowEditor::NextKeystroke() {
 
   // We're at the edit position. Decide: DELETE current[p] or INSERT target[p].
   if (p >= n) {
-    char ch = tf[p];
-    if (ch == '\n')
+    char32_t ch = tf[p];
+    if (ch == U'\n')
       return Keystroke::Key(HID_Key::ENTER);
-    return Keystroke::Char((uint8_t)ch);
+    return Keystroke::Char((uint32_t)ch);
   }
   if (p >= m)
     return Keystroke::Key(HID_Key::DELETE);
@@ -423,16 +522,17 @@ Keystroke ShadowEditor::NextKeystroke() {
 
   // Avoid INSERT '\n' at full row capacity — ENTER would drop row 0,
   // destroying content that's part of the matched prefix.
-  if (d_ins < d_del && tf[p] == '\n' && current.num_rows >= EditorState::kRows)
+  if (d_ins < d_del && tf[p] == U'\n' &&
+      current.num_rows >= EditorState::kRows)
     d_ins = d_del + 1;
 
   if (d_del <= d_ins)
     return Keystroke::Key(HID_Key::DELETE);
 
-  char ch = tf[p];
-  if (ch == '\n')
+  char32_t ch = tf[p];
+  if (ch == U'\n')
     return Keystroke::Key(HID_Key::ENTER);
-  return Keystroke::Char((uint8_t)ch);
+  return Keystroke::Char((uint32_t)ch);
 }
 
 } // namespace atmt

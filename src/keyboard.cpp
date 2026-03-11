@@ -63,7 +63,30 @@ string TerminalSequenceFromUnicode(int codepoint, Modifier mod_mask) {
     }
   }
 
-  // For everything else, use CSI u sequence (kitty keyboard protocol)
+  // Send Unicode codepoints as UTF-8
+  if (mod_mask == 0 && codepoint >= 0x80) {
+    char buf[4];
+    int len;
+    if (codepoint < 0x800) {
+      buf[0] = 0xC0 | (codepoint >> 6);
+      buf[1] = 0x80 | (codepoint & 0x3F);
+      len = 2;
+    } else if (codepoint < 0x10000) {
+      buf[0] = 0xE0 | (codepoint >> 12);
+      buf[1] = 0x80 | ((codepoint >> 6) & 0x3F);
+      buf[2] = 0x80 | (codepoint & 0x3F);
+      len = 3;
+    } else {
+      buf[0] = 0xF0 | (codepoint >> 18);
+      buf[1] = 0x80 | ((codepoint >> 12) & 0x3F);
+      buf[2] = 0x80 | ((codepoint >> 6) & 0x3F);
+      buf[3] = 0x80 | (codepoint & 0x3F);
+      len = 4;
+    }
+    return string(buf, len);
+  }
+
+  // Fallback: CSI u sequence (kitty keyboard protocol)
   return CSI_u_sequence(codepoint, mod_mask);
 }
 
@@ -379,6 +402,24 @@ char GetOgonekBase(uint32_t codepoint) {
     return 'a';
   case U'ę':
     return 'e';
+  case U'Ć':
+    return 'C';
+  case U'Ł':
+    return 'L';
+  case U'Ń':
+    return 'N';
+  case U'Ó':
+    return 'O';
+  case U'Ś':
+    return 'S';
+  case U'Ż':
+    return 'Z';
+  case U'Ź':
+    return 'X';
+  case U'Ą':
+    return 'A';
+  case U'Ę':
+    return 'E';
   default:
     return 0;
   }
