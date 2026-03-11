@@ -25,6 +25,15 @@ static string CSI_u_sequence(int codepoint, Modifier mod_mask) {
 }
 
 string TerminalSequenceFromUnicode(int codepoint, Modifier mod_mask) {
+  // Resolve shift for printable ASCII — most terminals don't support CSI u
+  if ((mod_mask & MOD_SHIFT) && codepoint >= 32 && codepoint <= 126) {
+    uint32_t shifted = ApplyShift(codepoint);
+    if (shifted != (uint32_t)codepoint) {
+      codepoint = shifted;
+      mod_mask &= ~MOD_SHIFT;
+    }
+  }
+
   // Handle simple ASCII characters without modifiers
   if (mod_mask == 0 && codepoint >= 32 && codepoint <= 126) {
     return string(1, static_cast<char>(codepoint));

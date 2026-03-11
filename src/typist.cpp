@@ -383,14 +383,12 @@ static void TypistTask(void *) {
 
     // Finally! We can now send the buffer :)
 
-    // Debugf("Sending buffer_: modifiers=0x%02x "
-    //        "keys=[%s %s %s %s %s %s]\n",
-    //        buffered_.modifiers, ToStr((HID_Key)buffered_.keys[0]),
-    //        ToStr((HID_Key)buffered_.keys[1]),
-    //        ToStr((HID_Key)buffered_.keys[2]),
-    //        ToStr((HID_Key)buffered_.keys[3]),
-    //        ToStr((HID_Key)buffered_.keys[4]),
-    //        ToStr((HID_Key)buffered_.keys[5]));
+    Debugf("Sending buffer_: modifiers=0x%02x "
+           "keys=[%s %s %s %s %s %s]\n",
+           buffered_.modifiers, ToStr((HID_Key)buffered_.keys[0]),
+           ToStr((HID_Key)buffered_.keys[1]), ToStr((HID_Key)buffered_.keys[2]),
+           ToStr((HID_Key)buffered_.keys[3]), ToStr((HID_Key)buffered_.keys[4]),
+           ToStr((HID_Key)buffered_.keys[5]));
 
     { // Wait a bit to avoid dropping notifications.
       // Note: we could actually try to process more of the messages from the
@@ -399,8 +397,8 @@ static void TypistTask(void *) {
       // xTaskDelayUntil(&last_send_time_, kMinInterval);
       auto can_send_time = last_send_time_ + kMinInterval;
       if (auto now = xTaskGetTickCount(); can_send_time > now) {
-        // Debugf("Waiting %d ms before sending the next report\n",
-        //        (can_send_time - now) * portTICK_PERIOD_MS);
+        Debugf("Waiting %d ms before sending the next report\n",
+               (can_send_time - now) * portTICK_PERIOD_MS);
         vTaskDelay(can_send_time - now);
       }
     }
