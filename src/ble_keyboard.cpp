@@ -203,6 +203,19 @@ void BleKeyboard::sendReport(KeyReport *keys) {
   }
 }
 
+int BleKeyboard::SendReportWithRetries(KeyReport *keys, int maxRetries) {
+  for (int attempt = 0; attempt <= maxRetries; ++attempt) {
+    _lastStatusCode = 0;
+    sendReport(keys);
+    waitForTx();
+    if (_lastStatusCode != 6)
+      return _lastStatusCode;
+    Debugf("BLE retry %d/%d (status 6)\n", attempt + 1, maxRetries);
+    vTaskDelay(pdMS_TO_TICKS(5));
+  }
+  return _lastStatusCode;
+}
+
 void BleKeyboard::sendReport(MediaKeyReport *keys) {
   if (this->IsConnected()) {
     this->inputMediaKeys->setValue((uint8_t *)keys, sizeof(MediaKeyReport));
@@ -305,6 +318,7 @@ void BleKeyboard::onWrite(BLECharacteristic *me) {
 
 void BleKeyboard::onStatus(BLECharacteristic *pCharacteristic, Status s,
                            int code) {
+  _lastStatusCode = code;
   if (code != 0) {
     Debugf("BleKeyboard::onStatus code=%d\n", code);
   }

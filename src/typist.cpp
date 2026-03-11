@@ -390,11 +390,9 @@ static void TypistTask(void *) {
            ToStr((HID_Key)buffered_.keys[3]), ToStr((HID_Key)buffered_.keys[4]),
            ToStr((HID_Key)buffered_.keys[5]));
 
-    { // Wait a bit to avoid dropping notifications.
+    if constexpr (false) { // Rate limit to avoid dropping notifications.
       // Note: we could actually try to process more of the messages from the
       // queue here, but that's asking for more bugs.
-      ble_keyboard.waitForTx();
-      // xTaskDelayUntil(&last_send_time_, kMinInterval);
       auto can_send_time = last_send_time_ + kMinInterval;
       if (auto now = xTaskGetTickCount(); can_send_time > now) {
         Debugf("Waiting %d ms before sending the next report\n",
@@ -403,14 +401,14 @@ static void TypistTask(void *) {
       }
     }
 
-    ble_keyboard.sendReport(&buffered_);
+    last_send_time_ = xTaskGetTickCount();
+    ble_keyboard.SendReportWithRetries(&buffered_);
     for (int i = 0; i < buffered_release.size(); ++i) {
       if (buffered_release.test(i) && !buffered_.Contains((HID_Key)i)) {
         buffered_release.reset(i);
       }
     }
     buffered_ = {};
-    last_send_time_ = xTaskGetTickCount();
   }
 }
 

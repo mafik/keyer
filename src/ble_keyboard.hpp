@@ -83,6 +83,7 @@ private:
   uint8_t batteryLevel;
   bool connected = false;
   SemaphoreHandle_t _txSem = nullptr;
+  volatile int _lastStatusCode = 0;
 
   uint16_t vid = 0x05ac;
   uint16_t pid = 0x820a;
@@ -97,6 +98,7 @@ public:
   void waitForTx();
   void sendReport(KeyReport *keys);
   void sendReport(MediaKeyReport *keys);
+  int SendReportWithRetries(KeyReport *keys, int maxRetries = 5);
   size_t press(const MediaKeyReport k);
   size_t release(const MediaKeyReport k);
   size_t write(const MediaKeyReport c);
