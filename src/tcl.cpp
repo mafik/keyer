@@ -11,6 +11,10 @@
 
 extern "C" {
 #include <jim.h>
+int Jim_eventloopInit(Jim_Interp *interp);
+int Jim_aioInit(Jim_Interp *interp);
+int Jim_readdirInit(Jim_Interp *interp);
+int Jim_fileInit(Jim_Interp *interp);
 }
 
 namespace atmt {
@@ -70,25 +74,6 @@ static void RedirectStdout() {
   stdout = fp;
 }
 
-// --- Tcl eval with output capture ---
-
-static std::string TclEval(const char *text, size_t len) {
-  if (!interp)
-    return "";
-
-  std::string script(text, len);
-  int ret = Jim_Eval(interp, script.c_str());
-  const char *result = Jim_String(Jim_GetResult(interp));
-
-  if (ret == JIM_ERR) {
-    std::string err = "ERROR: ";
-    err += result;
-    return err;
-  }
-
-  return result ? result : "";
-}
-
 // --- Custom Tcl commands ---
 
 static int SshCmd(Jim_Interp *interp, int argc, Jim_Obj *const *argv) {
@@ -102,31 +87,109 @@ static int HeapCmd(Jim_Interp *interp, int argc, Jim_Obj *const *argv) {
   return JIM_OK;
 }
 
+static int ResetCmd(Jim_Interp *interp, int argc, Jim_Obj *const *argv) {
+  editor.current = EditorState{};
+  WakeTypist();
+  return JIM_OK;
+}
+
 // --- Eval-in-place chord handler ---
+
+// EditorExtractTerm and EditorWrite are in tcl_extract.cpp (desktop-testable).
+std::string EditorExtractTerm(EditorState &editor);
+void EditorWrite(EditorState &editor, const std::string &text);
+
+// On error, try to insert '?' after the offending name in the original term.
+// Returns the modified term and the cursor offset (right after '?'), or empty
+// string if the error wasn't recognized.
+static std::string AnnotateError(const std::string &term, const char *err,
+                                 int &cursor_offset) {
+  // "invalid command name "NAME""
+  static const char kCmd[] = "invalid command name \"";
+  // "can't read "NAME": no such variable"
+  static const char kVar[] = "can't read \"";
+
+  std::string name;
+  std::string search;
+
+  if (strncmp(err, kCmd, sizeof(kCmd) - 1) == 0) {
+    const char *start = err + sizeof(kCmd) - 1;
+    const char *end = strchr(start, '"');
+    if (end) {
+      name.assign(start, end);
+      search = name;
+    }
+  } else if (strncmp(err, kVar, sizeof(kVar) - 1) == 0) {
+    const char *start = err + sizeof(kVar) - 1;
+    const char *end = strchr(start, '"');
+    if (end) {
+      name.assign(start, end);
+      search = "$";
+      search += name;
+    }
+  }
+
+  if (search.empty())
+    return "";
+
+  size_t pos = term.find(search);
+  if (pos == std::string::npos)
+    return "";
+
+  size_t insert_at = pos + search.size();
+  std::string result = term;
+  result.insert(insert_at, "?");
+  cursor_offset = insert_at + 1;
+  return result;
+}
 
 static void TclEvalInPlace() {
   EditorState &tgt = editor.target;
-  int r = tgt.cursor_row;
-  if (r < 0 || r >= tgt.num_rows)
+
+  std::string term = EditorExtractTerm(tgt);
+  if (term.empty())
     return;
 
-  std::string &row = tgt.rows[r];
-  int col = tgt.cursor_col;
-  if (col > (int)row.size())
-    col = row.size();
+  // Bare words are evaluated directly. Delimited terms (brackets, braces,
+  // quotes, parens) are wrapped in "concat" so the delimiters participate
+  // in Tcl parsing (command substitution, quoting, math) rather than being
+  // treated as the command name.
+  std::string script;
+  char first = term[0];
+  if (first == '[' || first == '{' || first == '"' || first == '$' ||
+      first == '(') {
+    script = "concat ";
+    script += term;
+  } else {
+    script = term;
+  }
 
-  std::string code = row.substr(0, col);
-  Debugf("Tcl eval(%s)", code.c_str());
+  Debugf("Tcl eval(%s)", script.c_str());
 
-  // Truncate old output after cursor
-  row = code;
+  int ret = Jim_Eval(interp, script.c_str());
+  const char *result = Jim_String(Jim_GetResult(interp));
 
-  // Evaluate
-  auto output = TclEval(code.data(), code.size());
-  Debugf(" => '%s'\n", output.c_str());
-
-  // Append output after cursor position
-  row += output;
+  if (ret == JIM_ERR) {
+    Debugf(" => ERROR: %s\n", result);
+    int cursor_offset = 0;
+    std::string annotated = AnnotateError(term, result, cursor_offset);
+    if (!annotated.empty()) {
+      int write_start = tgt.cursor_col;
+      EditorWrite(tgt, annotated);
+      tgt.cursor_col = write_start + cursor_offset;
+    } else {
+      // Unrecognized error — write back term + error
+      std::string fallback = term;
+      fallback += " ERROR: ";
+      fallback += result;
+      EditorWrite(tgt, fallback);
+    }
+  } else {
+    Debugf(" => '%s'\n", result ? result : "");
+    std::string output = result ? result : "";
+    if (!output.empty())
+      EditorWrite(tgt, output);
+  }
 
   WakeTypist();
 }
@@ -138,8 +201,8 @@ void TclInit() {
   if (!SPIFFS.begin(true, "/spiffs", 10)) {
     Debugf("Tcl: SPIFFS mount failed\n");
   } else {
-    Debugf("Tcl: SPIFFS mounted (%d/%d bytes used)\n",
-           (int)SPIFFS.usedBytes(), (int)SPIFFS.totalBytes());
+    Debugf("Tcl: SPIFFS mounted (%d/%d bytes used)\n", (int)SPIFFS.usedBytes(),
+           (int)SPIFFS.totalBytes());
   }
 
   RedirectStdout();
@@ -152,9 +215,16 @@ void TclInit() {
 
   Jim_RegisterCoreCommands(interp);
 
+  // Register extensions
+  Jim_eventloopInit(interp);
+  Jim_aioInit(interp);
+  Jim_readdirInit(interp);
+  Jim_fileInit(interp);
+
   // Register custom commands
   Jim_CreateCommand(interp, "ssh", SshCmd, nullptr, nullptr);
   Jim_CreateCommand(interp, "heap", HeapCmd, nullptr, nullptr);
+  Jim_CreateCommand(interp, "reset", ResetCmd, nullptr, nullptr);
 
   Debugf("Tcl: ready\n");
 
@@ -164,8 +234,7 @@ void TclInit() {
     fclose(f);
     int ret = Jim_EvalFile(interp, "/spiffs/init.tcl");
     if (ret == JIM_ERR) {
-      Debugf("Tcl: init.tcl error: %s\n",
-             Jim_String(Jim_GetResult(interp)));
+      Debugf("Tcl: init.tcl error: %s\n", Jim_String(Jim_GetResult(interp)));
     } else {
       Debugf("Tcl: init.tcl loaded\n");
     }

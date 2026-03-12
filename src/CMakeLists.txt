@@ -8,6 +8,7 @@ idf_component_register(SRCS
     "keyer.cpp"
     "keyboard.cpp"
     "tcl.cpp"
+    "tcl_extract.cpp"
     "shadow_editor.cpp"
     "typist.cpp"
     "../lib/jimtcl/src/jim.c"
@@ -19,6 +20,10 @@ idf_component_register(SRCS
     "../lib/jimtcl/src/jim-clock.c"
     "../lib/jimtcl/src/jim-pack.c"
     "../lib/jimtcl/src/jim-nosignal.c"
+    "../lib/jimtcl/src/jim-aio.c"
+    "../lib/jimtcl/src/jim-eventloop.c"
+    "../lib/jimtcl/src/jim-readdir.c"
+    "../lib/jimtcl/src/jim-file.c"
     "../lib/jimtcl/src/utf8.c"
     INCLUDE_DIRS "../lib/jimtcl/src"
 )
@@ -34,6 +39,10 @@ set(JIMTCL_SRCS
     ../lib/jimtcl/src/jim-clock.c
     ../lib/jimtcl/src/jim-pack.c
     ../lib/jimtcl/src/jim-nosignal.c
+    ../lib/jimtcl/src/jim-aio.c
+    ../lib/jimtcl/src/jim-eventloop.c
+    ../lib/jimtcl/src/jim-readdir.c
+    ../lib/jimtcl/src/jim-file.c
     ../lib/jimtcl/src/utf8.c
 )
 set_source_files_properties(${JIMTCL_SRCS} PROPERTIES

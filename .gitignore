@@ -6,6 +6,7 @@ layout_generator/build/
 *.so
 keyer_simulator_test
 test_forth/test_shadow_editor
+test_forth/test_tcl_extract
 fuzz/fuzz_gen
 src/secrets.cpp
 *.bmp

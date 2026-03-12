@@ -23,6 +23,15 @@
 #define TCL_PLATFORM_PATH_SEPARATOR ":"
 #define TCL_LIBRARY "/spiffs"
 
+#define JIM_MATH_FUNCTIONS 1
+#define HAVE_DIRENT_H 1
+#define HAVE_USLEEP 1
+
+// Extensions compiled separately (suppress stubs in jim.c)
+#define jim_ext_aio 1
+#define jim_ext_eventloop 1
+#define jim_ext_readdir 1
+
 // Not available on ESP32
 // #define HAVE_BACKTRACE 1
 // #define HAVE_EXECINFO_H 1
