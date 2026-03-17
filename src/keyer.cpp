@@ -586,13 +586,12 @@ void InitKeyer() {
 
   // Thumb layer 1 (THUMB_0 pressed)
   CHORDS[1][0][0][0][0] = Key(HID_Key::BACKSPACE);
-  CHORDS[1][0][0][0][1] = Key(HID_Key::DELETE);
+  CHORDS[1][1][0][2][0] = Key(HID_Key::ESC);
 
   // Thumb layer 2 (THUMB_1 pressed)
   CHORDS[2][0][0][0][0] = Key(' ');
   CHORDS[2][1][0][0][0] = Key(HID_Key::ENTER);
   CHORDS[2][2][0][0][0] = Key(HID_Key::TAB);
-  CHORDS[2][1][0][0][1] = Key(HID_Key::ESC);
 
   // Thumb layer 3 (THUMB_2 pressed) - special keys and navigation
   CHORDS[3][0][0][0][0] = Mod(MOD_CTRL);
@@ -608,6 +607,7 @@ void InitKeyer() {
   CHORDS[3][2][0][1][0] = Mod(MOD_CTRL, Key(HID_Key::LEFT_ARROW)); // C+left
   CHORDS[3][2][0][2][0] = Key(HID_Key::PAGE_UP);                   // page up
   CHORDS[3][2][1][1][0] = Key(HID_Key::END);                       // end
+  CHORDS[3][2][1][0][0] = Key(HID_Key::DELETE);
 
   // abcdefghijklmnopqrstuvwxyz 1234567890 `-= []\;',./
   // ABCDEFGHIJKLMNOPQRSTUVWXYZ !@#$%^&*() ~_+ {}|:"<>?
@@ -658,36 +658,6 @@ void InitKeyer() {
   CHORDS[2][1][2][0][0] = Key('x');
   CHORDS[0][2][1][1][0] = Key('y');
   CHORDS[2][2][0][1][0] = Key('z');
-
-  // C++ snippets
-  CHORDS[0][0][1][2][0] = Seq("auto");
-  CHORDS[1][0][1][2][0] = Seq("// ");
-  CHORDS[2][0][1][2][0] = Seq("nullptr");
-  CHORDS[0][0][2][2][0] = Seq("float ");
-  CHORDS[1][0][2][2][0] = Seq(" override");
-  CHORDS[2][0][2][2][0] = Seq("value");
-
-  CHORDS[0][1][1][2][0] = Seq("return ");
-  CHORDS[1][1][1][2][0] = Seq("for");
-  CHORDS[2][1][1][2][0] = Seq("include");
-
-  CHORDS[1][1][2][1][0] = Seq("const");
-  CHORDS[2][2][0][2][0] = Seq("type");
-
-  // Common bigrams
-  CHORDS[2][1][2][2][0] = Seq("ex");
-  CHORDS[0][2][0][2][0] = Seq("ke");
-  CHORDS[1][2][1][1][0] = Seq("je");
-  CHORDS[2][2][1][1][0] = Seq("wi");
-  CHORDS[0][2][2][1][0] = Seq("he");
-
-  // Common word chunks
-  CHORDS[1][2][2][1][0] = Seq("ction");
-  CHORDS[2][2][2][1][0] = Seq("ight");
-
-  // Terminal snippets
-  CHORDS[3][1][2][2][0] = Seq("sudo ");
-  CHORDS[3][2][2][1][0] = Seq("/home/maf/");
 
   // Add Shifts
   for (FingerPosition thumb = 0; thumb <= 3; ++thumb) {
