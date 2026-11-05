@@ -32,6 +32,14 @@ static std::string *forth_capture_buf = nullptr;
 static char filename[PATH_MAX];
 static char filename2[PATH_MAX];
 
+// Clamp a stack-provided length to fit the fixed-size filename buffers
+// above, preventing memcpy from overflowing them.
+#define CLAMP_PATH_LEN(l)                                                      \
+  do {                                                                         \
+    if ((size_t)(l) >= PATH_MAX)                                               \
+      (l) = PATH_MAX - 1;                                                      \
+  } while (0)
+
 #define PRINT_ERRORS 0
 #define STACK_CELLS 512
 #define MINIMUM_FREE_SYSTEM_HEAP (32 * 1024)
@@ -77,17 +85,18 @@ static char filename2[PATH_MAX];
   X("CLOSE-FILE", CLOSE_FILE, tos = close(tos); tos = tos ? errno : 0)         \
   X("FLUSH-FILE", FLUSH_FILE, fsync(tos); tos = 0)                             \
   X("OPEN-FILE", OPEN_FILE, cell_t mode = n0; DROP; cell_t len = n0; DROP;     \
-    memcpy(filename, a0, len); filename[len] = 0;                              \
+    CLAMP_PATH_LEN(len); memcpy(filename, a0, len); filename[len] = 0;         \
     n0 = open(filename, mode, 0777); PUSH n0 < 0 ? errno : 0)                  \
   X("CREATE-FILE", CREATE_FILE, cell_t mode = n0; DROP; cell_t len = n0; DROP; \
-    memcpy(filename, a0, len); filename[len] = 0;                              \
+    CLAMP_PATH_LEN(len); memcpy(filename, a0, len); filename[len] = 0;         \
     n0 = open(filename, mode | O_CREAT | O_TRUNC); PUSH n0 < 0 ? errno : 0)    \
   X("DELETE-FILE", DELETE_FILE, cell_t len = n0; DROP;                         \
-    memcpy(filename, a0, len); filename[len] = 0; n0 = unlink(filename);       \
-    n0 = n0 ? errno : 0)                                                       \
+    CLAMP_PATH_LEN(len); memcpy(filename, a0, len); filename[len] = 0;         \
+    n0 = unlink(filename); n0 = n0 ? errno : 0)                                \
   X("RENAME-FILE", RENAME_FILE, cell_t len = n0; DROP;                         \
-    memcpy(filename, a0, len); filename[len] = 0; DROP; cell_t len2 = n0;      \
-    DROP; memcpy(filename2, a0, len2); filename2[len2] = 0;                    \
+    CLAMP_PATH_LEN(len); memcpy(filename, a0, len); filename[len] = 0; DROP;   \
+    cell_t len2 = n0; DROP; CLAMP_PATH_LEN(len2);                              \
+    memcpy(filename2, a0, len2); filename2[len2] = 0;                         \
     n0 = rename(filename2, filename); n0 = n0 ? errno : 0)                     \
   X("WRITE-FILE", WRITE_FILE, cell_t fd = n0; DROP; cell_t len = n0; DROP;     \
     n0 = write(fd, a0, len); n0 = n0 != len ? errno : 0)                       \
@@ -103,8 +112,8 @@ static char filename2[PATH_MAX];
     n0 = (cell_t)st.st_size; PUSH w < 0 ? errno : 0)                           \
   X("NON-BLOCK", NON_BLOCK, n0 = fcntl(n0, F_SETFL, O_NONBLOCK);               \
     n0 = n0 < 0 ? errno : 0)                                                   \
-  X("OPEN-DIR", OPEN_DIR, memcpy(filename, a1, n0); filename[n0] = 0;          \
-    n1 = (cell_t)opendir(filename); n0 = n1 ? 0 : errno)                       \
+  X("OPEN-DIR", OPEN_DIR, CLAMP_PATH_LEN(n0); memcpy(filename, a1, n0);        \
+    filename[n0] = 0; n1 = (cell_t)opendir(filename); n0 = n1 ? 0 : errno)     \
   X("CLOSE-DIR", CLOSE_DIR, n0 = closedir((DIR *)n0); n0 = n0 ? errno : 0)     \
   YV(internals, READDIR, struct dirent *ent = readdir((DIR *)n0);              \
      SET(ent ? ent->d_name : 0))
