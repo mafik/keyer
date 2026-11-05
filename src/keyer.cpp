@@ -73,6 +73,14 @@ Action *active_button_actions[NUM_BUTTONS];
 Action *chord_action;
 esp_timer_handle_t chord_autostart_timer;
 
+static bool IsAnyButtonDown() {
+  for (int i = 0; i < NUM_BUTTONS; ++i) {
+    if (buttons_down[i])
+      return true;
+  }
+  return false;
+}
+
 enum ArpeggioState {
   STATE_READY,
   STATE_BUTTON1_DOWN,
@@ -124,9 +132,11 @@ FingerPosition Little() {
 }
 
 Modifier temp_modifiers, held_modifiers;
+bool consume_modifiers = false;
+
+static Modifier CurrentModifiers() { return held_modifiers | temp_modifiers; }
 
 bool ogonek = false;
-bool modifiers_consumed = false;
 
 uint32_t GetOgonek(uint32_t codepoint) {
   switch (codepoint) {
@@ -160,41 +170,11 @@ struct FunctionAction : Action {
   void OnStop() override {}
 };
 
-// Ensures that for action sequences, modifiers are only applied to the first
-// key in the sequence. This is useful for shift
-struct ModifierConsumer {
-  Modifier saved_temp_modifiers;
-  Modifier saved_held_modifiers;
-  bool saved_ogonek;
-
-  ModifierConsumer()
-      : saved_temp_modifiers(temp_modifiers),
-        saved_held_modifiers(held_modifiers), saved_ogonek(ogonek) {
-    modifiers_consumed = true;
-    temp_modifiers = 0;
-    held_modifiers = 0;
-    // ogonek = false;
-  }
-
-  ~ModifierConsumer() {
-    temp_modifiers = saved_temp_modifiers;
-    held_modifiers = saved_held_modifiers;
-    ogonek = saved_ogonek;
-  }
-
-  Modifier GetModifiers() const {
-    return saved_temp_modifiers | saved_held_modifiers;
-  }
-
-  bool GetOgonek() const { return saved_ogonek; }
-};
-
 struct WriteUnicodeAction : Action {
   uint32_t codepoint;
   WriteUnicodeAction(uint32_t unichar, Action *next = nullptr)
       : Action(next), codepoint(unichar) {}
 
-  std::optional<ModifierConsumer> mods = std::nullopt;
   void Write(Modifier modifiers, bool ogonek) {
     if (ogonek) {
       HID_Key fkey = HID_Key::NONE;
@@ -221,23 +201,22 @@ struct WriteUnicodeAction : Action {
     }
   }
   void OnStart() override {
-    mods.emplace();
-    Write(mods->GetModifiers(), mods->GetOgonek());
+    Write(held_modifiers | temp_modifiers, ogonek);
+    consume_modifiers = true;
   }
-  void OnStop() override { mods.reset(); }
+  void OnStop() override {}
 };
 
 struct WriteIBM_KeyAction : Action {
   HID_Key key;
   WriteIBM_KeyAction(HID_Key key, Action *next = nullptr)
       : Action(next), key(key) {}
-  std::optional<ModifierConsumer> mods = std::nullopt;
   void OnStart() override {
-    mods.emplace();
     Debugf("ibm_key %s", ToStr(key));
-    HandleKey(key, mods->GetModifiers());
+    HandleKey(key, held_modifiers | temp_modifiers);
+    consume_modifiers = true;
   }
-  void OnStop() override { mods.reset(); }
+  void OnStop() override {}
 };
 
 // A modifier that affects the nested key press.
@@ -254,6 +233,7 @@ struct TemporaryModifierAction : Action {
     } else {
       Debugf("  Pressing modifier [%d] (TemporaryModifierAction)\n", modifier);
       temp_modifiers |= modifier;
+      consume_modifiers = false;
     }
   }
   void OnStop() override {}
@@ -261,7 +241,10 @@ struct TemporaryModifierAction : Action {
 
 struct TemporaryOgonekAction : Action {
   TemporaryOgonekAction(Action *next = nullptr) : Action(next) {}
-  void OnStart() override { ogonek = !ogonek; }
+  void OnStart() override {
+    ogonek = !ogonek;
+    consume_modifiers = false;
+  }
   void OnStop() override {}
 };
 
@@ -276,7 +259,12 @@ struct HoldModifierAction : Action {
     void OnStop() override {
       Debugf("  Releasing modifier [%d] (ReleaseHeldModifierAction)\n",
              hold_action.modifier);
+      auto old = CurrentModifiers();
       held_modifiers &= ~hold_action.modifier;
+      auto curr = CurrentModifiers();
+      if (curr != old) {
+        HandleModifiers(curr);
+      }
     }
   };
   ReleaseHeldModifierAction release_action;
@@ -291,6 +279,7 @@ struct HoldModifierAction : Action {
     Debugf("  Pressing modifier [%d] (HoldModifierAction)\n", modifier);
     held_modifiers |= modifier;
     active_button_actions[hold_button] = &release_action;
+    HandleModifiers(CurrentModifiers());
   }
   void OnStop() override {}
 };
@@ -389,8 +378,10 @@ void OnButtonDown(Button i) {
       esp_timer_stop(chord_autostart_timer);
     }
     Debugln("Unique action!");
-    active_button_actions[i] = unique_action;
     unique_action->Start();
+    if (active_button_actions[i] == nullptr) {
+      active_button_actions[i] = unique_action;
+    }
   } else {
     if (esp_timer_is_active(chord_autostart_timer)) {
       esp_timer_stop(chord_autostart_timer);
@@ -421,7 +412,8 @@ void OnButtonUp(Button i) {
     Debugf("Stopping active button action\n");
     active_button_action->Stop();
     active_button_action = nullptr;
-  } else if (chord_action && buttons_down[i]) {
+  }
+  if (chord_action && buttons_down[i]) {
     Debugf("Stopping chord action\n");
     chord_action->Stop();
     chord_action = nullptr;
@@ -456,11 +448,12 @@ void OnButtonUp(Button i) {
   bool all_buttons_up = !any_button_down;
   if (all_buttons_up) {
     arpeggio_state = STATE_READY;
-    if (modifiers_consumed) {
+    if (consume_modifiers) {
       temp_modifiers = 0;
       ogonek = false;
-      modifiers_consumed = false;
+      consume_modifiers = false;
     }
+    HandleModifiers(held_modifiers | temp_modifiers);
   }
 }
 
@@ -546,7 +539,19 @@ struct ButtonDebouncer {
     if (pressed_gpio != pressed_state) {
       pressed_state = pressed_gpio;
       last_change = esp_timer_get_time();
-      ReportPressedState();
+      // Dispatch to main loop to avoid racing with OnChange on shared
+      // state (buttons_down, chord_action, etc.).
+      uint64_t arg = (uint64_t(i) << 1) | uint64_t(pressed_state);
+      RunOnMain(
+          [](uint64_t arg) {
+            Button button = arg >> 1;
+            if (arg & 1) {
+              OnButtonDown(button);
+            } else {
+              OnButtonUp(button);
+            }
+          },
+          arg);
     }
   }
 
@@ -571,6 +576,75 @@ void IRAM_ATTR button_isr(void *button) {
         button_debouncers[button].OnChange(time);
       },
       arg);
+}
+
+static void PrintUniqueActions() {
+  for (FingerPosition thumb = 0; thumb <= 3; ++thumb) {
+    for (FingerPosition index = 0; index <= 2; ++index) {
+      for (FingerPosition middle = 0; middle <= 2; ++middle) {
+        for (FingerPosition ring = 0; ring <= 2; ++ring) {
+          for (FingerPosition little = 0; little <= 1; ++little) {
+            for (int i = 0; i < NUM_BUTTONS; ++i) {
+              buttons_down[i] = false;
+            }
+            switch (thumb) {
+            case 0:
+              break;
+            case 1:
+              buttons_down[THUMB_0] = true;
+              break;
+            case 2:
+              buttons_down[THUMB_1] = true;
+              break;
+            case 3:
+              buttons_down[THUMB_2] = true;
+              break;
+            }
+            switch (index) {
+            case 0:
+              break;
+            case 1:
+              buttons_down[INDEX_3] = true;
+              break;
+            case 2:
+              buttons_down[INDEX_7] = true;
+              break;
+            }
+            switch (middle) {
+            case 0:
+              break;
+            case 1:
+              buttons_down[MIDDLE_4] = true;
+              break;
+            case 2:
+              buttons_down[MIDDLE_8] = true;
+              break;
+            }
+            switch (ring) {
+            case 0:
+              break;
+            case 1:
+              buttons_down[RING_5] = true;
+              break;
+            case 2:
+              buttons_down[RING_9] = true;
+              break;
+            }
+            if (little) {
+              buttons_down[LITTLE_6] = true;
+            }
+            if (FindUniqueAction()) {
+              Debugf("Found unique action for CHORD[%d][%d][%d][%d][%d]\n",
+                     thumb, index, middle, ring, little);
+            }
+          }
+        }
+      }
+    }
+  }
+  for (int i = 0; i < NUM_BUTTONS; ++i) {
+    buttons_down[i] = false;
+  }
 }
 
 void InitKeyer() {
@@ -660,6 +734,7 @@ void InitKeyer() {
   CHORDS[2][2][0][1][0] = Key('z');
 
   // Add Shifts
+  // CHORDS[0][0][0][0][1] = Hold(LITTLE_6, MOD_SHIFT);
   for (FingerPosition thumb = 0; thumb <= 3; ++thumb) {
     for (FingerPosition index = 0; index <= 2; ++index) {
       for (FingerPosition middle = 0; middle <= 2; ++middle) {
@@ -678,6 +753,8 @@ void InitKeyer() {
       }
     }
   }
+
+  // PrintUniqueActions();
 
   for (Button i = 0; i < NUM_BUTTONS; i++) {
     button_debouncers[i].OnSetup(i);

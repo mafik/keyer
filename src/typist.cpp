@@ -25,6 +25,8 @@ static TickType_t last_send_time_ = 0;
 
 static std::bitset<256> buffered_release = {};
 static KeyReport buffered_ = {};
+static Modifier sticky_mods = 0;
+static Modifier last_sent_mods = 0;
 
 void KeystrokeToHID(Keystroke ks, HID_Key &ibm_key, Modifier &mods) {
   mods = ks.mods;
@@ -343,6 +345,7 @@ static void TypistTask(void *) {
     Keystroke from_queue;
     bool was_idle = editor.IsIdle();
     if (xQueueReceive(typist_queue, &from_queue, 0)) {
+      sticky_mods = from_queue.mods;
       if (from_queue.IsNone()) {
         continue;
       }
@@ -376,9 +379,14 @@ static void TypistTask(void *) {
     // At this point either we have nothing to do, or the buffer is full and
     // must be sent.
 
-    if (buffered_release.none() && buffered_.Count() == 0) {
+    if (buffered_release.none() && buffered_.Count() == 0 &&
+        sticky_mods == last_sent_mods) {
       xQueuePeek(typist_queue, &from_queue, portMAX_DELAY);
       continue;
+    }
+
+    if (buffered_.Count() == 0) {
+      buffered_.modifiers = sticky_mods;
     }
 
     // Finally! We can now send the buffer :)
@@ -403,12 +411,14 @@ static void TypistTask(void *) {
 
     last_send_time_ = xTaskGetTickCount();
     ble_keyboard.SendReportWithRetries(&buffered_);
+    last_sent_mods = buffered_.modifiers;
     for (int i = 0; i < buffered_release.size(); ++i) {
       if (buffered_release.test(i) && !buffered_.Contains((HID_Key)i)) {
         buffered_release.reset(i);
       }
     }
     buffered_ = {};
+    buffered_.modifiers = sticky_mods;
   }
 }
 
@@ -443,7 +453,6 @@ void HandleUnicode(uint32_t codepoint, Modifier mods) {
     uint32_t shifted = ApplyShift(codepoint);
     if (shifted != codepoint) {
       codepoint = shifted;
-      mods &= ~MOD_SHIFT;
     }
   }
   Keystroke ks = Keystroke::Char(codepoint, mods);
@@ -458,6 +467,12 @@ void HandleKey(HID_Key key, Modifier mods) {
     return;
   }
   Keystroke ks = Keystroke::Key(key, mods);
+  xQueueSendToBack(typist_queue, &ks, 0);
+}
+
+void HandleModifiers(Modifier mods) {
+  Keystroke ks = Keystroke::None();
+  ks.mods = mods;
   xQueueSendToBack(typist_queue, &ks, 0);
 }
 

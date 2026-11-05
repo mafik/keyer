@@ -240,9 +240,9 @@ void TclInit() {
     }
   }
 
-  RegisterChord(2, 1, 0, 2, 0, TclEvalInPlace);
-  RegisterChord(1, 1, 0, 2, 0, DebugDumpEditor);
-  RegisterChord(3, 2, 2, 2, 0, [] {
+  RegisterChord(2, 1, 0, 2, 0, TclEvalInPlace);  // Eval Tcl
+  RegisterChord(3, 2, 2, 1, 0, DebugDumpEditor); // Editor dump
+  RegisterChord(3, 2, 2, 2, 0, [] {              // Heap/task dump
     std::string out = DebugHeapStr("DebugChord");
     out += '\n';
     char tmp[128];

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Parse keyer.cpp and generate an HTML cheat sheet for the chording keyboard layout."""
+"""Parse keyer.cpp and tcl.cpp and generate an HTML cheat sheet for the chording keyboard layout."""
 
 import re
 import html
@@ -8,6 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent
 KEYER_CPP = ROOT / "src" / "keyer.cpp"
+TCL_CPP = ROOT / "src" / "tcl.cpp"
 OUTPUT_HTML = ROOT / "layout.html"
 
 SVG_NAMES = ['thumb', 'index', 'middle', 'ring', 'little']
@@ -76,7 +77,7 @@ def parse_action(action_str):
         key_label = parse_key_arg(key_arg)
         return f'{mod}+{key_label}', 'editing'
 
-    # Mod(MOD_X, Key(IBM_Key::...))  already covered above
+    # Mod(MOD_X, Key(HID_Key::...))  already covered above
 
     # Mod(MOD_X)
     m = re.match(r'Mod\((\w+)\)$', s)
@@ -95,8 +96,8 @@ def parse_action(action_str):
     if m:
         return None, None
 
-    # Key(IBM_Key::X)
-    m = re.match(r'Key\(IBM_Key::(\w+)\)', s)
+    # Key(HID_Key::X)
+    m = re.match(r'Key\(HID_Key::(\w+)\)', s)
     if m:
         label = IBM_KEY_SYMBOLS.get(m.group(1), m.group(1))
         return label, 'editing'
@@ -135,8 +136,8 @@ def parse_action(action_str):
 
 
 def parse_key_arg(arg):
-    """Parse a key argument like IBM_Key::LEFT_ARROW or '\\n'."""
-    m = re.match(r"IBM_Key::(\w+)", arg)
+    """Parse a key argument like HID_Key::LEFT_ARROW or '\\n'."""
+    m = re.match(r"HID_Key::(\w+)", arg)
     if m:
         return IBM_KEY_SYMBOLS.get(m.group(1), m.group(1))
     m = re.match(r"'(\\?.?)'", arg)
@@ -164,9 +165,11 @@ def parse_keyer_cpp():
     source = KEYER_CPP.read_text()
     entries = []
 
+    # The terminating ';' is the one at end-of-line (optionally before a //
+    # comment); a non-anchored '.+?;' would stop at a ';' inside Key(';').
     pattern = re.compile(
-        r'CHORDS\[(\d+)\]\[(\d+)\]\[(\d+)\]\[(\d+)\]\[(\d+)\]\s*=\s*(.+?);',
-        re.DOTALL
+        r'CHORDS\[(\d+)\]\[(\d+)\]\[(\d+)\]\[(\d+)\]\[(\d+)\]\s*=\s*(.+?);\s*(?://.*)?$',
+        re.MULTILINE
     )
 
     for m in pattern.finditer(source):
@@ -180,6 +183,25 @@ def parse_keyer_cpp():
     return entries
 
 
+def parse_tcl_chords():
+    """Parse RegisterChord() calls in tcl.cpp. The label is the trailing //
+    comment, falling back to the registered function's name."""
+    source = TCL_CPP.read_text()
+    entries = []
+
+    pattern = re.compile(
+        r'RegisterChord\((\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*([^/\n]*?)\s*(?://\s*(.*))?$',
+        re.MULTILINE
+    )
+
+    for m in pattern.finditer(source):
+        t, i, mi, r, l = (int(g) for g in m.groups()[:5])
+        label = m.group(7) or m.group(6).rstrip('); {')
+        entries.append((label.strip(), 'tcl', t, i, mi, r, l))
+
+    return entries
+
+
 CATEGORY_ORDER = [
     ('letter', 'Letters'),
     ('digit', 'Digits'),
@@ -187,6 +209,7 @@ CATEGORY_ORDER = [
     ('editing', 'Editing'),
     ('modifier', 'Modifiers'),
     ('sequence', 'Sequences'),
+    ('tcl', 'Tcl'),
 ]
 
 POSITION_COLORS = {
@@ -296,7 +319,7 @@ def generate_html(entries):
 
 
 def main():
-    entries = parse_keyer_cpp()
+    entries = parse_keyer_cpp() + parse_tcl_chords()
     html_content = generate_html(entries)
     OUTPUT_HTML.write_text(html_content)
     print(f"Generated {OUTPUT_HTML} with {len(entries)} chords")

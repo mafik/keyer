@@ -103,7 +103,9 @@ Jim Tcl (https://github.com/msteveb/jimtcl) is embedded as a library in `lib/jim
 
 **Chord handler:**
 - Chord 2102/mod0 → TclEvalInPlace: manipulates `editor.target` directly — truncates old output after cursor, evaluates code before cursor via `TclEval`, appends output to target row, calls `WakeTypist()`. The typist incrementally updates the host display.
-- Chord 1102/mod0 → DebugDumpEditor: dumps ShadowEditor state (current + target) via serial for diagnostics.
+- Chord 3221/mod0 → DebugDumpEditor: dumps ShadowEditor state (current + target) via serial for diagnostics.
+- Chord 3222/mod0 → heap + task stack dump via serial.
+- `RegisterChord` runs after `InitKeyer()` and silently overrides any `keyer.cpp` chord on the same slot (the editor dump at 1102 once hid Esc). Check `layout.html` for duplicates when picking a slot.
 
 **Jim Tcl build notes:**
 - `lib/jimtcl/src/jimautoconf.h` — ESP32 config (replaces autoconf-generated header)
@@ -119,6 +121,9 @@ pio run -e EyeTerm
 
 # Upload
 pio run -e EyeTerm -t upload --upload-port /dev/ttyACM0
+
+# Regenerate layout cheat sheet (layout.html) from keyer.cpp + tcl.cpp
+python3 generate_layout_html.py
 
 # Monitor serial (debug output)
 stty -F /dev/ttyACM0 115200 raw -echo && timeout 10 cat /dev/ttyACM0
